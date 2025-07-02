@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import math
 from pathlib import Path
+import os
+os.system("pip install openpyxl")
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
