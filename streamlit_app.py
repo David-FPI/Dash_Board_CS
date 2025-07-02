@@ -8,7 +8,7 @@ os.system("pip install openpyxl")
 
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
-    page_title='GDP dashboard',
+    page_title='KPI dashboard Tool',
     page_icon=':earth_americas:',
 )
 
