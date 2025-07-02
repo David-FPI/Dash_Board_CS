@@ -13,8 +13,18 @@ st.set_page_config(
 )
 
 # === Upload file ===
-uploaded_file = st.file_uploader("📥 Kéo file Excel vào đây", type=["xlsx"])
-if uploaded_file:
+uploaded_files = st.file_uploader("📥 Kéo **nhiều** file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
+
+if uploaded_files:
+    all_data = []
+
+    for file in uploaded_files:
+        st.write(f"📂 Đang xử lý file: `{file.name}`")
+        df = extract_all_data(file)
+        all_data.append(df)
+
+    df_all = pd.concat(all_data, ignore_index=True)
+
 
     def extract_data_from_sheet(sheet_df, sheet_name):
         data = []
