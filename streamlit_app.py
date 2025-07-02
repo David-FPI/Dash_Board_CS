@@ -9,13 +9,11 @@ os.system("pip install openpyxl")
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
     page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+    page_icon=':earth_americas:',
 )
 
 # === Upload file ===
 uploaded_file = st.file_uploader("📥 Kéo file Excel vào đây", type=["xlsx"])
-xls = pd.ExcelFile(uploaded_file)
-ket_ban_rows = []
 if uploaded_file:
 
     def extract_data_from_sheet(sheet_df, sheet_name):
@@ -28,11 +26,9 @@ if uploaded_file:
             row = sheet_df.iloc[i]
             name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-            # Nếu có tên nhân viên hợp lệ
             if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
                 current_nv = name_cell
 
-                # Đọc 6 dòng nguồn kế tiếp
                 for j in range(i, i + 6):
                     if j >= rows:
                         break
@@ -66,10 +62,10 @@ if uploaded_file:
             except Exception as e:
                 st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
 
-        return pd.DataFrame(all_rows)
+        return pd.DataFrame(all_rows), xls
 
     # === Xử lý file upload
-    df_all = extract_all_data(uploaded_file)
+    df_all, xls = extract_all_data(uploaded_file)
 
     # === Chuẩn hóa tên nhân viên
     df_all["Nhân viên chuẩn"] = (
@@ -93,7 +89,7 @@ if uploaded_file:
         .reset_index()
         .sort_values(by="Tổng TT ≥10 câu", ascending=False)
     )
-# === Tính thêm cột Hiệu suất (Group Zalo / Tương tác ≥10 câu) * 100
+
     df_summary["Hiệu suất nhân viên (%)"] = (
         (df_summary["Tổng Group Zalo"] / df_summary["Tổng TT ≥10 câu"]) * 100
     ).round(2).fillna(0)
@@ -102,7 +98,8 @@ if uploaded_file:
     st.dataframe(df_summary, use_container_width=True)
 
     st.success(f"Tổng số nhân viên: {df_summary['Nhân viên chuẩn'].nunique()}")
-# === Tổng hợp theo từng sheet + nhân viên chuẩn
+
+    # === Tổng hợp theo từng sheet + nhân viên chuẩn
     df_by_sheet = (
         df_all.groupby(["Sheet", "Nhân viên chuẩn"])
         .agg({
@@ -116,14 +113,11 @@ if uploaded_file:
         .reset_index()
         .sort_values(by=["Nhân viên chuẩn", "Sheet"])
     )
-    
+
     st.subheader("📊 Bảng Chỉ Số Tương Tác & Group Zalo Theo Từng Sheet")
     st.dataframe(df_by_sheet, use_container_width=True)
 
-
-# === Sau khi df_all đã được xử lý và có cột "Nhân viên chuẩn" ===
-    
- # === Vẽ biểu đồ KPI theo thời gian
+    # === Vẽ biểu đồ KPI theo thời gian
     kpi_over_time = (
         df_all.groupby(["Sheet", "Nhân viên chuẩn"])
         .agg({
@@ -170,32 +164,30 @@ if uploaded_file:
             height=500
         )
         st.plotly_chart(fig, use_container_width=True)
-# Lấy dữ liệu cột "Tổng số kết bạn trong ngày" từ tất cả các sheet và group by nhân viên chuẩn
-    
+
+    # === Tổng số kết bạn trong ngày theo nhân viên ===
     def extract_friend_adds(xls):
         all_data = []
-    
+
         for sheet in xls.sheet_names:
             try:
                 df = pd.read_excel(xls, sheet_name=sheet, header=None)
-    
                 if df.shape[0] < 10 or df.shape[1] < 13:
                     continue
-    
-                i = 3  # Bỏ qua 3 dòng đầu
+
+                i = 3
                 current_nv = None
-    
+
                 while i < df.shape[0]:
                     row = df.iloc[i]
                     name = str(row[1]).strip() if pd.notna(row[1]) else ""
-    
+
                     if name and name.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
                         current_nv = name
                         for j in range(i, i + 6):
                             if j >= df.shape[0]:
                                 break
                             sub_row = df.iloc[j]
-                            name_in_loop = str(sub_row[1]).strip()
                             if pd.isna(sub_row[2]) or str(sub_row[2]).strip() == "":
                                 break
                             friend_adds = pd.to_numeric(sub_row[9], errors="coerce")
@@ -209,23 +201,28 @@ if uploaded_file:
                         i += 1
             except Exception as e:
                 continue
-    
+
         return pd.DataFrame(all_data)
-    
+
     df_friends = extract_friend_adds(xls)
-    
-    # Chuẩn hóa tên nhân viên
+
     df_friends["Nhân viên chuẩn"] = df_friends["Nhân viên"].astype(str).str.replace(r"\n.*", "", regex=True).str.strip()
-    
-    # Tổng hợp
+
     friend_summary = (
         df_friends.groupby("Nhân viên chuẩn")["Kết bạn trong ngày"]
         .sum()
         .reset_index()
         .sort_values(by="Kết bạn trong ngày", ascending=False)
     )
-    
-    friend_summary.head(10)
+
+    st.subheader("📋 Bảng Tổng hợp Kết Bạn Trong Ngày theo Nhân Viên")
+    st.dataframe(friend_summary, use_container_width=True)
+
+    # Merge để tạo bảng mới giống df_summary nhưng thêm cột Kết bạn
+    merged_summary = pd.merge(df_summary.drop(columns=["Hiệu suất nhân viên (%)"]), friend_summary, on="Nhân viên chuẩn", how="left")
+
+    st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo & Kết Bạn theo Nhân Viên")
+    st.dataframe(merged_summary, use_container_width=True)
 
 else:
     st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
