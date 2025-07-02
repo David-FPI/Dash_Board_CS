@@ -26,9 +26,11 @@ if uploaded_file:
             row = sheet_df.iloc[i]
             name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
 
+            # Nếu có tên nhân viên hợp lệ
             if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
                 current_nv = name_cell
 
+                # Đọc 6 dòng nguồn kế tiếp
                 for j in range(i, i + 6):
                     if j >= rows:
                         break
@@ -41,6 +43,7 @@ if uploaded_file:
                         "Nguồn": str(nguon).strip(),
                         "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
                         "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+                        "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
                         "Sheet": sheet_name
                     })
                 i += 6
@@ -62,10 +65,10 @@ if uploaded_file:
             except Exception as e:
                 st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
 
-        return pd.DataFrame(all_rows), xls
+        return pd.DataFrame(all_rows)
 
     # === Xử lý file upload
-    df_all, xls = extract_all_data(uploaded_file)
+    df_all = extract_all_data(uploaded_file)
 
     # === Chuẩn hóa tên nhân viên
     df_all["Nhân viên chuẩn"] = (
@@ -80,21 +83,24 @@ if uploaded_file:
         df_all.groupby("Nhân viên chuẩn")
         .agg({
             "Tương tác ≥10 câu": "sum",
-            "Group Zalo": "sum"
+            "Group Zalo": "sum",
+            "Kết bạn trong ngày": "sum"
         })
         .rename(columns={
             "Tương tác ≥10 câu": "Tổng TT ≥10 câu",
-            "Group Zalo": "Tổng Group Zalo"
+            "Group Zalo": "Tổng Group Zalo",
+            "Kết bạn trong ngày": "Tổng Kết bạn"
         })
         .reset_index()
         .sort_values(by="Tổng TT ≥10 câu", ascending=False)
     )
 
+    # === Tính hiệu suất nhân viên
     df_summary["Hiệu suất nhân viên (%)"] = (
-        (df_summary["Tổng Group Zalo"] / df_summary["Tổng TT ≥10 câu"]) * 100
+        (df_summary["Tổng Group Zalo"] / df_summary["Tổng Kết bạn"]) * 100
     ).round(2).fillna(0)
 
-    st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo theo Nhân Viên")
+    st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo & Kết Bạn theo Nhân Viên")
     st.dataframe(df_summary, use_container_width=True)
 
     st.success(f"Tổng số nhân viên: {df_summary['Nhân viên chuẩn'].nunique()}")
@@ -164,65 +170,6 @@ if uploaded_file:
             height=500
         )
         st.plotly_chart(fig, use_container_width=True)
-
-    # === Tổng số kết bạn trong ngày theo nhân viên ===
-    def extract_friend_adds(xls):
-        all_data = []
-
-        for sheet in xls.sheet_names:
-            try:
-                df = pd.read_excel(xls, sheet_name=sheet, header=None)
-                if df.shape[0] < 10 or df.shape[1] < 13:
-                    continue
-
-                i = 3
-                current_nv = None
-
-                while i < df.shape[0]:
-                    row = df.iloc[i]
-                    name = str(row[1]).strip() if pd.notna(row[1]) else ""
-
-                    if name and name.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
-                        current_nv = name
-                        for j in range(i, i + 6):
-                            if j >= df.shape[0]:
-                                break
-                            sub_row = df.iloc[j]
-                            if pd.isna(sub_row[2]) or str(sub_row[2]).strip() == "":
-                                break
-                            friend_adds = pd.to_numeric(sub_row[9], errors="coerce")
-                            all_data.append({
-                                "Sheet": sheet,
-                                "Nhân viên": current_nv,
-                                "Kết bạn trong ngày": friend_adds
-                            })
-                        i += 6
-                    else:
-                        i += 1
-            except Exception as e:
-                continue
-
-        return pd.DataFrame(all_data)
-
-    df_friends = extract_friend_adds(xls)
-
-    df_friends["Nhân viên chuẩn"] = df_friends["Nhân viên"].astype(str).str.replace(r"\n.*", "", regex=True).str.strip()
-
-    friend_summary = (
-        df_friends.groupby("Nhân viên chuẩn")["Kết bạn trong ngày"]
-        .sum()
-        .reset_index()
-        .sort_values(by="Kết bạn trong ngày", ascending=False)
-    )
-
-    st.subheader("📋 Bảng Tổng hợp Kết Bạn Trong Ngày theo Nhân Viên")
-    st.dataframe(friend_summary, use_container_width=True)
-
-    # Merge để tạo bảng mới giống df_summary nhưng thêm cột Kết bạn
-    merged_summary = pd.merge(df_summary.drop(columns=["Hiệu suất nhân viên (%)"]), friend_summary, on="Nhân viên chuẩn", how="left")
-
-    st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo & Kết Bạn theo Nhân Viên")
-    st.dataframe(merged_summary, use_container_width=True)
 
 else:
     st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
