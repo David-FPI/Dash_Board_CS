@@ -9,143 +9,232 @@ st.set_page_config(
     page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# # -----------------------------------------------------------------------------
+# # Declare some useful functions.
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# @st.cache_data
+# def get_gdp_data():
+#     """Grab GDP data from a CSV file.
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+#     This uses caching to avoid having to read the file every time. If we were
+#     reading from an HTTP endpoint instead of a file, it's a good idea to set
+#     a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
+#     """
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+#     # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
+#     DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
+#     raw_gdp_df = pd.read_csv(DATA_FILENAME)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+#     MIN_YEAR = 1960
+#     MAX_YEAR = 2022
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
+#     # The data above has columns like:
+#     # - Country Name
+#     # - Country Code
+#     # - [Stuff I don't care about]
+#     # - GDP for 1960
+#     # - GDP for 1961
+#     # - GDP for 1962
+#     # - ...
+#     # - GDP for 2022
+#     #
+#     # ...but I want this instead:
+#     # - Country Name
+#     # - Country Code
+#     # - Year
+#     # - GDP
+#     #
+#     # So let's pivot all those year-columns into two: Year and GDP
+#     gdp_df = raw_gdp_df.melt(
+#         ['Country Code'],
+#         [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
+#         'Year',
+#         'GDP',
+#     )
+
+#     # Convert years from string to integers
+#     gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+
+#     return gdp_df
+
+# gdp_df = get_gdp_data()
+
+# # -----------------------------------------------------------------------------
+# # Draw the actual page
+
+# # Set the title that appears at the top of the page.
+# '''
+# # :earth_americas: GDP dashboard
+
+# Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
+# notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
+# But it's otherwise a great (and did I mention _free_?) source of data.
+# '''
+
+# # Add some spacing
+# ''
+# ''
+
+# min_value = gdp_df['Year'].min()
+# max_value = gdp_df['Year'].max()
+
+# from_year, to_year = st.slider(
+#     'Which years are you interested in?',
+#     min_value=min_value,
+#     max_value=max_value,
+#     value=[min_value, max_value])
+
+# countries = gdp_df['Country Code'].unique()
+
+# if not len(countries):
+#     st.warning("Select at least one country")
+
+# selected_countries = st.multiselect(
+#     'Which countries would you like to view?',
+#     countries,
+#     ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
+
+# ''
+# ''
+# ''
+
+# # Filter the data
+# filtered_gdp_df = gdp_df[
+#     (gdp_df['Country Code'].isin(selected_countries))
+#     & (gdp_df['Year'] <= to_year)
+#     & (from_year <= gdp_df['Year'])
+# ]
+
+# st.header('GDP over time', divider='gray')
+
+# ''
+
+# st.line_chart(
+#     filtered_gdp_df,
+#     x='Year',
+#     y='GDP',
+#     color='Country Code',
+# )
+
+# ''
+# ''
+
+
+# first_year = gdp_df[gdp_df['Year'] == from_year]
+# last_year = gdp_df[gdp_df['Year'] == to_year]
+
+# st.header(f'GDP in {to_year}', divider='gray')
+
+# ''
+
+# cols = st.columns(4)
+
+# for i, country in enumerate(selected_countries):
+#     col = cols[i % len(cols)]
+
+#     with col:
+#         first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
+#         last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
+
+#         if math.isnan(first_gdp):
+#             growth = 'n/a'
+#             delta_color = 'off'
+#         else:
+#             growth = f'{last_gdp / first_gdp:,.2f}x'
+#             delta_color = 'normal'
+
+#         st.metric(
+#             label=f'{country} GDP',
+#             value=f'{last_gdp:,.0f}B',
+#             delta=growth,
+#             delta_color=delta_color
+#         )
+
+
+# === Upload file ===
+uploaded_file = st.file_uploader("📥 Kéo file Excel vào đây", type=["xlsx"])
+if uploaded_file:
+
+    def extract_data_from_sheet(sheet_df, sheet_name):
+        data = []
+        current_nv = None
+        rows = sheet_df.shape[0]
+
+        i = 3  # Bắt đầu từ dòng 4 (index 3), bỏ qua header
+        while i < rows:
+            row = sheet_df.iloc[i]
+            name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
+
+            # Nếu có tên nhân viên hợp lệ
+            if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
+                current_nv = name_cell
+
+                # Đọc 6 dòng nguồn kế tiếp
+                for j in range(i, i + 6):
+                    if j >= rows:
+                        break
+                    sub_row = sheet_df.iloc[j]
+                    nguon = sub_row[2]
+                    if pd.isna(nguon) or str(nguon).strip() in ["", "0"]:
+                        break
+                    data.append({
+                        "Nhân viên": current_nv.strip(),
+                        "Nguồn": str(nguon).strip(),
+                        "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
+                        "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+                        "Sheet": sheet_name
+                    })
+                i += 6
+            else:
+                i += 1
+        return data
+
+    def extract_all_data(file):
+        xls = pd.ExcelFile(file)
+        all_rows = []
+
+        for sheet_name in xls.sheet_names:
+            try:
+                df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+                if df.shape[0] < 10 or df.shape[1] < 19:
+                    continue
+                extracted = extract_data_from_sheet(df, sheet_name)
+                all_rows.extend(extracted)
+            except Exception as e:
+                st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
+
+        return pd.DataFrame(all_rows)
+
+    # === Xử lý file upload
+    df_all = extract_all_data(uploaded_file)
+
+    # === Chuẩn hóa tên nhân viên
+    df_all["Nhân viên chuẩn"] = (
+        df_all["Nhân viên"]
+        .astype(str)
+        .str.replace(r"\n.*", "", regex=True)
+        .str.strip()
     )
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+    # === Tổng hợp KPI theo nhân viên
+    df_summary = (
+        df_all.groupby("Nhân viên chuẩn")
+        .agg({
+            "Tương tác ≥10 câu": "sum",
+            "Group Zalo": "sum"
+        })
+        .rename(columns={
+            "Tương tác ≥10 câu": "Tổng TT ≥10 câu",
+            "Group Zalo": "Tổng Group Zalo"
+        })
+        .reset_index()
+        .sort_values(by="Tổng TT ≥10 câu", ascending=False)
+    )
 
-    return gdp_df
+    st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo theo Nhân Viên")
+    st.dataframe(df_summary, use_container_width=True)
 
-gdp_df = get_gdp_data()
+    st.success(f"Tổng số nhân viên: {df_summary['Nhân viên chuẩn'].nunique()}")
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+else:
+    st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
