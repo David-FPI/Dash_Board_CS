@@ -156,6 +156,8 @@ st.set_page_config(
 
 # === Upload file ===
 uploaded_file = st.file_uploader("📥 Kéo file Excel vào đây", type=["xlsx"])
+xls = pd.ExcelFile(uploaded_file)
+ket_ban_rows = []
 if uploaded_file:
 
     def extract_data_from_sheet(sheet_df, sheet_name):
