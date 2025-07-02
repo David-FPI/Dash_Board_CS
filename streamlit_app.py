@@ -310,6 +310,62 @@ if uploaded_file:
             height=500
         )
         st.plotly_chart(fig, use_container_width=True)
+# Lấy dữ liệu cột "Tổng số kết bạn trong ngày" từ tất cả các sheet và group by nhân viên chuẩn
+    
+    def extract_friend_adds(xls):
+        all_data = []
+    
+        for sheet in xls.sheet_names:
+            try:
+                df = pd.read_excel(xls, sheet_name=sheet, header=None)
+    
+                if df.shape[0] < 10 or df.shape[1] < 13:
+                    continue
+    
+                i = 3  # Bỏ qua 3 dòng đầu
+                current_nv = None
+    
+                while i < df.shape[0]:
+                    row = df.iloc[i]
+                    name = str(row[1]).strip() if pd.notna(row[1]) else ""
+    
+                    if name and name.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
+                        current_nv = name
+                        for j in range(i, i + 6):
+                            if j >= df.shape[0]:
+                                break
+                            sub_row = df.iloc[j]
+                            name_in_loop = str(sub_row[1]).strip()
+                            if pd.isna(sub_row[2]) or str(sub_row[2]).strip() == "":
+                                break
+                            friend_adds = pd.to_numeric(sub_row[9], errors="coerce")
+                            all_data.append({
+                                "Sheet": sheet,
+                                "Nhân viên": current_nv,
+                                "Kết bạn trong ngày": friend_adds
+                            })
+                        i += 6
+                    else:
+                        i += 1
+            except Exception as e:
+                continue
+    
+        return pd.DataFrame(all_data)
+    
+    df_friends = extract_friend_adds(xls)
+    
+    # Chuẩn hóa tên nhân viên
+    df_friends["Nhân viên chuẩn"] = df_friends["Nhân viên"].astype(str).str.replace(r"\n.*", "", regex=True).str.strip()
+    
+    # Tổng hợp
+    friend_summary = (
+        df_friends.groupby("Nhân viên chuẩn")["Kết bạn trong ngày"]
+        .sum()
+        .reset_index()
+        .sort_values(by="Kết bạn trong ngày", ascending=False)
+    )
+    
+    friend_summary.head(10)
 
 else:
     st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
