@@ -11,6 +11,53 @@ st.set_page_config(
     page_title='KPI dashboard Tool',
     page_icon=':earth_americas:',
 )
+def extract_data_from_sheet(sheet_df, sheet_name):
+    data = []
+    current_nv = None
+    rows = sheet_df.shape[0]
+
+    i = 3
+    while i < rows:
+        row = sheet_df.iloc[i]
+        name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
+
+        if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
+            current_nv = name_cell
+            for j in range(i, i + 6):
+                if j >= rows:
+                    break
+                sub_row = sheet_df.iloc[j]
+                nguon = sub_row[2]
+                if pd.isna(nguon) or str(nguon).strip() in ["", "0"]:
+                    break
+                data.append({
+                    "Nhân viên": current_nv.strip(),
+                    "Nguồn": str(nguon).strip(),
+                    "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
+                    "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+                    "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
+                    "Sheet": sheet_name
+                })
+            i += 6
+        else:
+            i += 1
+    return data
+
+def extract_all_data(file):
+    xls = pd.ExcelFile(file)
+    all_rows = []
+
+    for sheet_name in xls.sheet_names:
+        try:
+            df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+            if df.shape[0] < 10 or df.shape[1] < 19:
+                continue
+            extracted = extract_data_from_sheet(df, sheet_name)
+            all_rows.extend(extracted)
+        except Exception as e:
+            st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
+
+    return pd.DataFrame(all_rows)
 
 # === Upload file ===
 uploaded_files = st.file_uploader("📥 Kéo **nhiều** file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
@@ -20,62 +67,61 @@ if uploaded_files:
 
     for file in uploaded_files:
         st.write(f"📂 Đang xử lý file: `{file.name}`")
-        df = extract_all_data(file)
+        df = extract_all_data(file)  # ✅ Lúc này hàm đã được định nghĩa ở trên
         all_data.append(df)
 
     df_all = pd.concat(all_data, ignore_index=True)
 
+    # def extract_data_from_sheet(sheet_df, sheet_name):
+    #     data = []
+    #     current_nv = None
+    #     rows = sheet_df.shape[0]
 
-    def extract_data_from_sheet(sheet_df, sheet_name):
-        data = []
-        current_nv = None
-        rows = sheet_df.shape[0]
+    #     i = 3  # Bắt đầu từ dòng 4 (index 3), bỏ qua header
+    #     while i < rows:
+    #         row = sheet_df.iloc[i]
+    #         name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-        i = 3  # Bắt đầu từ dòng 4 (index 3), bỏ qua header
-        while i < rows:
-            row = sheet_df.iloc[i]
-            name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
+    #         # Nếu có tên nhân viên hợp lệ
+    #         if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
+    #             current_nv = name_cell
 
-            # Nếu có tên nhân viên hợp lệ
-            if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
-                current_nv = name_cell
+    #             # Đọc 6 dòng nguồn kế tiếp
+    #             for j in range(i, i + 6):
+    #                 if j >= rows:
+    #                     break
+    #                 sub_row = sheet_df.iloc[j]
+    #                 nguon = sub_row[2]
+    #                 if pd.isna(nguon) or str(nguon).strip() in ["", "0"]:
+    #                     break
+    #                 data.append({
+    #                     "Nhân viên": current_nv.strip(),
+    #                     "Nguồn": str(nguon).strip(),
+    #                     "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
+    #                     "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+    #                     "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
+    #                     "Sheet": sheet_name
+    #                 })
+    #             i += 6
+    #         else:
+    #             i += 1
+    #     return data
 
-                # Đọc 6 dòng nguồn kế tiếp
-                for j in range(i, i + 6):
-                    if j >= rows:
-                        break
-                    sub_row = sheet_df.iloc[j]
-                    nguon = sub_row[2]
-                    if pd.isna(nguon) or str(nguon).strip() in ["", "0"]:
-                        break
-                    data.append({
-                        "Nhân viên": current_nv.strip(),
-                        "Nguồn": str(nguon).strip(),
-                        "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
-                        "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
-                        "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
-                        "Sheet": sheet_name
-                    })
-                i += 6
-            else:
-                i += 1
-        return data
+    # def extract_all_data(file):
+    #     xls = pd.ExcelFile(file)
+    #     all_rows = []
 
-    def extract_all_data(file):
-        xls = pd.ExcelFile(file)
-        all_rows = []
+    #     for sheet_name in xls.sheet_names:
+    #         try:
+    #             df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+    #             if df.shape[0] < 10 or df.shape[1] < 19:
+    #                 continue
+    #             extracted = extract_data_from_sheet(df, sheet_name)
+    #             all_rows.extend(extracted)
+    #         except Exception as e:
+    #             st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
 
-        for sheet_name in xls.sheet_names:
-            try:
-                df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
-                if df.shape[0] < 10 or df.shape[1] < 19:
-                    continue
-                extracted = extract_data_from_sheet(df, sheet_name)
-                all_rows.extend(extracted)
-            except Exception as e:
-                st.warning(f"❌ Lỗi ở sheet '{sheet_name}': {e}")
-
-        return pd.DataFrame(all_rows)
+    #     return pd.DataFrame(all_rows)
 
     # === Xử lý file upload
     df_all = extract_all_data(uploaded_file)
