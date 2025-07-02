@@ -232,6 +232,10 @@ if uploaded_file:
         .reset_index()
         .sort_values(by="Tổng TT ≥10 câu", ascending=False)
     )
+# === Tính thêm cột Hiệu suất (Group Zalo / Tương tác ≥10 câu) * 100
+    df_summary["Hiệu suất nhân viên (%)"] = (
+        (df_summary["Tổng Group Zalo"] / df_summary["Tổng TT ≥10 câu"]) * 100
+    ).round(2).fillna(0)
 
     st.subheader("📋 Bảng Tổng hợp Tương Tác & Group Zalo theo Nhân Viên")
     st.dataframe(df_summary, use_container_width=True)
