@@ -241,6 +241,24 @@ if uploaded_file:
     st.dataframe(df_summary, use_container_width=True)
 
     st.success(f"Tổng số nhân viên: {df_summary['Nhân viên chuẩn'].nunique()}")
+# === Tổng hợp theo từng sheet + nhân viên chuẩn
+    df_by_sheet = (
+        df_all.groupby(["Sheet", "Nhân viên chuẩn"])
+        .agg({
+            "Tương tác ≥10 câu": "sum",
+            "Group Zalo": "sum"
+        })
+        .rename(columns={
+            "Tương tác ≥10 câu": "TT ≥10 câu",
+            "Group Zalo": "Group Zalo"
+        })
+        .reset_index()
+        .sort_values(by=["Nhân viên chuẩn", "Sheet"])
+    )
+    
+    st.subheader("📊 Bảng Chỉ Số Tương Tác & Group Zalo Theo Từng Sheet")
+    st.dataframe(df_by_sheet, use_container_width=True)
+
 
 else:
     st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
