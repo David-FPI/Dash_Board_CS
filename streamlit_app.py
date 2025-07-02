@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import math
 from pathlib import Path
+import plotly.express as px
 import os
 os.system("pip install openpyxl")
 
@@ -258,6 +259,58 @@ if uploaded_file:
     
     st.subheader("📊 Bảng Chỉ Số Tương Tác & Group Zalo Theo Từng Sheet")
     st.dataframe(df_by_sheet, use_container_width=True)
+
+
+# === Sau khi df_all đã được xử lý và có cột "Nhân viên chuẩn" ===
+    
+    # === Tổng hợp theo sheet và nhân viên
+    kpi_over_time = (
+        df_all.groupby(["Sheet", "Nhân viên chuẩn"])
+        .agg({
+            "Tương tác ≥10 câu": "sum",
+            "Group Zalo": "sum"
+        })
+        .reset_index()
+        .rename(columns={
+            "Tương tác ≥10 câu": "Tương tác",
+            "Group Zalo": "Group"
+        })
+    )
+    
+    st.subheader(":bar_chart: Biểu đồ KPI theo thời gian")
+    
+    # === Chọn nhân viên
+    unique_employees = kpi_over_time["Nhân viên chuẩn"].unique().tolist()
+    selected_employees = st.multiselect(
+        "Chọn nhân viên cần xem:", unique_employees, default=unique_employees[:5]
+    )
+    
+    # === Chọn loại KPI
+    kpi_option = st.selectbox(
+        "Chọn KPI muốn theo dõi:",
+        ["Tương tác", "Group"]
+    )
+    
+    # === Lọc dữ liệu theo nhân viên
+    filtered_df = kpi_over_time[kpi_over_time["Nhân viên chuẩn"].isin(selected_employees)]
+    
+    # === Vẽ biểu đồ Line Chart
+    fig = px.line(
+        filtered_df,
+        x="Sheet",
+        y=kpi_option,
+        color="Nhân viên chuẩn",
+        markers=True,
+        title=f"Biểu đồ {kpi_option} qua các Sheet"
+    )
+    fig.update_layout(
+        xaxis_title="Sheet",
+        yaxis_title=kpi_option,
+        legend_title="Nhân viên",
+        hovermode="x unified",
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 else:
