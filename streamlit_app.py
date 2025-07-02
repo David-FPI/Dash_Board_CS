@@ -123,8 +123,8 @@ if uploaded_files:
 
     #     return pd.DataFrame(all_rows)
 
-    # === Xử lý file upload
-    df_all = extract_all_data(uploaded_file)
+
+
 
     # === Chuẩn hóa tên nhân viên
     df_all["Nhân viên chuẩn"] = (
