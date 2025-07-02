@@ -263,7 +263,7 @@ if uploaded_file:
 
 # === Sau khi df_all đã được xử lý và có cột "Nhân viên chuẩn" ===
     
-    # === Tổng hợp theo sheet và nhân viên
+ # === Vẽ biểu đồ KPI theo thời gian
     kpi_over_time = (
         df_all.groupby(["Sheet", "Nhân viên chuẩn"])
         .agg({
@@ -276,42 +276,40 @@ if uploaded_file:
             "Group Zalo": "Group"
         })
     )
-    
+
     st.subheader(":bar_chart: Biểu đồ KPI theo thời gian")
-    
-    # === Chọn nhân viên
+
     unique_employees = kpi_over_time["Nhân viên chuẩn"].unique().tolist()
     selected_employees = st.multiselect(
         "Chọn nhân viên cần xem:", unique_employees, default=unique_employees[:5]
     )
-    
-    # === Chọn loại KPI
+
     kpi_option = st.selectbox(
         "Chọn KPI muốn theo dõi:",
         ["Tương tác", "Group"]
     )
-    
-    # === Lọc dữ liệu theo nhân viên
-    filtered_df = kpi_over_time[kpi_over_time["Nhân viên chuẩn"].isin(selected_employees)]
-    
-    # === Vẽ biểu đồ Line Chart
-    fig = px.line(
-        filtered_df,
-        x="Sheet",
-        y=kpi_option,
-        color="Nhân viên chuẩn",
-        markers=True,
-        title=f"Biểu đồ {kpi_option} qua các Sheet"
-    )
-    fig.update_layout(
-        xaxis_title="Sheet",
-        yaxis_title=kpi_option,
-        legend_title="Nhân viên",
-        hovermode="x unified",
-        height=500
-    )
-    st.plotly_chart(fig, use_container_width=True)
 
+    filtered_df = kpi_over_time[kpi_over_time["Nhân viên chuẩn"].isin(selected_employees)]
+
+    if filtered_df.empty:
+        st.warning("⚠️ Không có dữ liệu để hiển thị. Vui lòng chọn nhân viên có dữ liệu.")
+    else:
+        fig = px.line(
+            filtered_df,
+            x="Sheet",
+            y=kpi_option,
+            color="Nhân viên chuẩn",
+            markers=True,
+            title=f"Biểu đồ {kpi_option} qua các Sheet"
+        )
+        fig.update_layout(
+            xaxis_title="Sheet",
+            yaxis_title=kpi_option,
+            legend_title="Nhân viên",
+            hovermode="x unified",
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 else:
     st.info("📎 Vui lòng tải lên file Excel báo cáo để bắt đầu.")
