@@ -5,7 +5,7 @@ import os
 
 os.system("pip install openpyxl")
 
-st.set_page_config(page_title="📊 Đọc tên nhân viên", page_icon="👩‍💼")
+st.set_page_config(page_title="📊 Đọc tên nhân viên & Tính KPI", page_icon="👩‍💼")
 
 # =====================
 # 🔧 Hàm chuẩn hóa tên nhân viên
@@ -16,18 +16,42 @@ def clean_employee_name(name: str) -> str:
     name = re.sub(r"\s+", " ", name)
     return name.strip().title()
 
+# =====================
+# 📥 Dò cột từ dòng tiêu đề bằng keyword
+
+def get_column_mapping(header_row):
+    mapping = {}
+    for idx, col in enumerate(header_row):
+        col_clean = str(col).lower().replace("\n", " ").strip()
+        if "\u226510" in col_clean or ">=10" in col_clean:
+            mapping["Tương tác ≥10 câu"] = idx
+        elif "group zalo" in col_clean:
+            mapping["Lượng tham gia group Zalo"] = idx
+        elif "kết bạn trong ngày" in col_clean:
+            mapping["Tổng số kết bạn trong ngày"] = idx
+    return mapping
+
 
 # =====================
 # 📥 Đọc từng sheet
+
 def extract_data_from_sheet(sheet_df, sheet_name):
     data = []
     rows = sheet_df.shape[0]
 
+    sheet_df = sheet_df.copy()
     sheet_df[1] = sheet_df[1].fillna(method='ffill')  # fill tên nhân viên từ merge
+
+    if rows < 4:
+        return data
+
+    header_row = sheet_df.iloc[2]  # dùng dòng thứ 3 làm tiêu đề
+    col_map = get_column_mapping(header_row)
+
     current_nv = None
     empty_count = 0
 
-    for i in range(3, rows):  # bỏ 3 dòng đầu
+    for i in range(3, rows):  # bắt đầu từ dòng 4 trở đi
         row = sheet_df.iloc[i]
 
         # Xác định tên nhân viên từ cột B
@@ -37,7 +61,6 @@ def extract_data_from_sheet(sheet_df, sheet_name):
                 continue
             current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
 
-        # Nếu không có tên thì bỏ qua
         if not current_nv:
             continue
 
@@ -46,26 +69,30 @@ def extract_data_from_sheet(sheet_df, sheet_name):
         if nguon == "" or nguon.lower() == "nan":
             empty_count += 1
             if empty_count >= 2:
-                break  # kết thúc khối dữ liệu nếu trống liên tiếp 2 dòng
+                break
             continue
         else:
             empty_count = 0
 
-        # Lưu lại dòng hợp lệ
-        data.append({
+        data_row = {
             "Nhân viên": current_nv,
             "Nguồn": nguon,
-            "Tương tác ≥10 câu": pd.to_numeric(row[15], errors="coerce"),
-            "Group Zalo": pd.to_numeric(row[18], errors="coerce"),
-            "Kết bạn trong ngày": pd.to_numeric(row[12], errors="coerce"),
             "Sheet": sheet_name
-        })
+        }
+
+        # Thêm các cột KPI nếu có
+        for kpi_name, idx in col_map.items():
+            value = pd.to_numeric(row[idx], errors="coerce")
+            data_row[kpi_name] = value
+
+        data.append(data_row)
 
     return data
 
 
 # =====================
 # 📤 Đọc toàn bộ file Excel
+
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
     all_rows = []
@@ -85,7 +112,7 @@ def extract_all_data(file):
 
 # =====================
 # Giao diện upload
-st.title("📥 Đọc Tên Nhân Viên Từ File Excel Báo Cáo")
+st.title("📥 Đọc Tên Nhân Viên & Tính KPI Từ File Excel Báo Cáo")
 
 uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
 
@@ -99,7 +126,6 @@ if uploaded_files:
     df_all = pd.concat(all_data, ignore_index=True)
 
     if not df_all.empty:
-        # Chuẩn hóa tên nhân viên
         df_all["Nhân viên chuẩn"] = df_all["Nhân viên"].apply(clean_employee_name)
 
         st.subheader("✅ Danh sách Nhân viên đã chuẩn hóa")
@@ -107,60 +133,36 @@ if uploaded_files:
 
         st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💻 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
 
-                # =====================
-        # 📊 KPI Dashboard - Tính KPI Tùy Biến
-        st.header("📊 KPI Dashboard - Tính KPI Tùy Biến")
-    
+        # 📊 KPI Dashboard - Tổng hợp và tính KPI
+        st.subheader("📊 KPI Dashboard - Tính KPI Tùy Biến")
+
         st.markdown("### 🔢 Dữ liệu tổng hợp ban đầu")
-        grouped_df = df_all.groupby("Nhân viên chuẩn").agg({
-            "Tương tác ≥10 câu": "sum",
-            "Group Zalo": "sum",
-            "Kết bạn trong ngày": "sum"
-        }).reset_index()
-    
-        # Đổi tên cột "Kết bạn trong ngày" thành "Lượng tham gia group Zalo"
-        grouped_df.rename(columns={"Kết bạn trong ngày": "Lượng tham gia group Zalo"}, inplace=True)
-    
-        st.dataframe(grouped_df, use_container_width=True)
-    
+        st.dataframe(df_all, use_container_width=True)
+
         st.markdown("### ⚙️ Cấu hình KPI Tuỳ Biến")
-    
-        col1, col2, col3 = st.columns(3)
-    
-        with col1:
-            col_a = st.selectbox("Chọn cột A", grouped_df.columns[1:], key="col_a")
-        with col2:
-            operation = st.selectbox("Phép toán", ["/", "*", "+", "-"], key="operation")
-        with col3:
-            col_b = st.selectbox("Chọn cột B", grouped_df.columns[1:], key="col_b")
-    
-        kpi_name = st.text_input("Tên chỉ số KPI mới", value="Hiệu suất (%)")
-    
+
+        kpi_cols = [col for col in df_all.columns if col not in ["Nhân viên", "Nguồn", "Sheet", "Nhân viên chuẩn"]]
+
+        col_a = st.selectbox("Chọn cột A", kpi_cols)
+        operation = st.selectbox("Phép toán", ["/", "*", "+", "-"])
+        col_b = st.selectbox("Chọn cột B", kpi_cols)
+        new_kpi_name = st.text_input("Tên chỉ số KPI mới", "Hiệu suất (%)")
+
         if st.button("✅ Tính KPI"):
             try:
-                # Tính KPI
-                if operation == "/" and (grouped_df[col_b] == 0).any():
-                    st.warning("⚠️ Có giá trị chia cho 0, KPI có thể không chính xác.")
-                grouped_df[kpi_name] = grouped_df[col_a].astype(float)
-    
-                if operation == "+":
-                    grouped_df[kpi_name] = grouped_df[col_a] + grouped_df[col_b]
-                elif operation == "-":
-                    grouped_df[kpi_name] = grouped_df[col_a] - grouped_df[col_b]
+                if operation == "/":
+                    df_all[new_kpi_name] = df_all[col_a] / df_all[col_b]
                 elif operation == "*":
-                    grouped_df[kpi_name] = grouped_df[col_a] * grouped_df[col_b]
-                elif operation == "/":
-                    grouped_df[kpi_name] = grouped_df[col_a] / grouped_df[col_b]
-    
-                # Nếu tên KPI có "%", thì nhân 100 và làm tròn
-                if "%" in kpi_name:
-                    grouped_df[kpi_name] = (grouped_df[kpi_name] * 100).round(2)
-    
-                st.success(f"✅ Đã tính KPI mới: `{kpi_name}`")
-                st.dataframe(grouped_df, use_container_width=True)
+                    df_all[new_kpi_name] = df_all[col_a] * df_all[col_b]
+                elif operation == "+":
+                    df_all[new_kpi_name] = df_all[col_a] + df_all[col_b]
+                elif operation == "-":
+                    df_all[new_kpi_name] = df_all[col_a] - df_all[col_b]
+
+                st.success(f"✅ Đã tính KPI mới: {new_kpi_name}")
+                st.dataframe(df_all[["Nhân viên chuẩn", col_a, col_b, new_kpi_name]], use_container_width=True)
             except Exception as e:
                 st.error(f"❌ Lỗi khi tính KPI: {e}")
-
 
     else:
         st.warning("❗ Không có dữ liệu nào được trích xuất. Vui lòng kiểm tra lại file.")
