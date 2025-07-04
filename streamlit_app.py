@@ -1,9 +1,12 @@
+# 🔄 Code cập nhật: thêm cột 'Xuất hiện ở các sheet'
+
 import unicodedata
 import re
 import pandas as pd
 import streamlit as st
+from collections import defaultdict
 
-# ✅ Hàm chuẩn hóa text: bỏ dấu, lowercase, bỏ khoảng trắng thừa
+# ✅ Hàm chuẩn hóa text
 def normalize_text(text):
     if not isinstance(text, str):
         return ""
@@ -17,13 +20,11 @@ def normalize_text(text):
 def normalize_name(name):
     if not isinstance(name, str):
         return ""
-    # Bỏ phần trong dấu ngoặc như (Event), (Note), v.v.
     name = re.sub(r"\(.*?\)", "", name)
-    # Chuẩn hóa khoảng trắng và viết hoa chữ cái đầu
     name = re.sub(r'\s+', ' ', name).strip().title()
     return name
 
-# ✅ Hàm lọc tên nhân viên từ cột B, dừng khi gặp 2 dòng trống liên tiếp
+# ✅ Lấy tên nhân viên theo block merge
 def extract_data_with_staff(df, staff_col_index=1):
     df = df.copy()
     df = df.dropna(how='all')
@@ -55,26 +56,6 @@ def extract_data_with_staff(df, staff_col_index=1):
     df.rename(columns={staff_col: "Tên nhân viên"}, inplace=True)
     return df
 
-# ✅ Trích xuất danh sách tên nhân viên duy nhất
-def extract_unique_staff_names(sheet_data_list):
-    all_names = []
-
-    for sheet_data in sheet_data_list:
-        df = sheet_data['data']
-        if "Tên nhân viên" not in df.columns:
-            continue
-        names = df["Tên nhân viên"].dropna().tolist()
-        names = [normalize_name(name) for name in names if isinstance(name, str) and name.strip()]
-        all_names.extend(names)
-
-    # Lọc các tên không hợp lệ
-    invalid_keywords = ["组员", "组员名字", "Nan", ""]
-    all_names = [name for name in all_names if normalize_text(name) not in [normalize_text(x) for x in invalid_keywords]]
-
-    # Trả ra tên unique và sắp xếp
-    unique_names = sorted(set(all_names))
-    return unique_names
-
 # ✅ Giao diện Streamlit
 st.set_page_config(page_title="📊 KPI Dashboard", layout="wide")
 st.title("📋 Danh sách Nhân Viên từ File Excel")
@@ -82,7 +63,8 @@ st.title("📋 Danh sách Nhân Viên từ File Excel")
 uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
-    sheet_data_list = []
+    name_to_sheets = defaultdict(set)
+
     for file in uploaded_files:
         xls = pd.ExcelFile(file)
         for sheet_name in xls.sheet_names:
@@ -90,18 +72,28 @@ if uploaded_files:
                 raw_df = pd.read_excel(xls, sheet_name=sheet_name, skiprows=2)
                 df = extract_data_with_staff(raw_df, staff_col_index=1)
                 st.caption(f"📄 Sheet: `{sheet_name}` — Cột: {list(df.columns)}")
-                sheet_data_list.append({
-                    'data': df
-                })
+
+                for name in df['Tên nhân viên']:
+                    if name and normalize_text(name) not in ["nan", "", "zuoyuan", "zuoyuan mingzi"]:
+                        name_to_sheets[normalize_name(name)].add(sheet_name)
+
             except Exception as e:
                 st.warning(f"❗ Sheet {sheet_name} lỗi: {e}")
 
-    unique_names = extract_unique_staff_names(sheet_data_list)
+    # ======= Hiển thị bảng tổng hợp
+    if name_to_sheets:
+        data = []
+        for name, sheets in name_to_sheets.items():
+            data.append({
+                "Tên nhân viên chuẩn hóa": name,
+                "Xuất hiện ở các sheet": ", ".join(sorted(sheets)),
+                "Số lần xuất hiện": len(sheets)
+            })
+        df_result = pd.DataFrame(data).sort_values("Tên nhân viên chuẩn hóa")
 
-    if unique_names:
-        df_names = pd.DataFrame({"Tên nhân viên chuẩn hóa": unique_names})
-        st.dataframe(df_names, use_container_width=True)
-        st.success(f"✅ Tổng cộng có {len(unique_names)} nhân viên duy nhất sau chuẩn hóa.")
-        st.download_button("📥 Tải danh sách nhân viên", data=df_names.to_csv(index=False).encode('utf-8-sig'), file_name="danh_sach_nhan_vien.csv", mime="text/csv")
+        st.dataframe(df_result, use_container_width=True)
+        st.success(f"✅ Tổng cộng có {len(df_result)} nhân viên duy nhất sau chuẩn hóa.")
+
+        st.download_button("📥 Tải danh sách nhân viên", data=df_result.to_csv(index=False).encode('utf-8-sig'), file_name="danh_sach_nhan_vien.csv", mime="text/csv")
     else:
         st.error("❌ Không tìm được nhân viên nào.")
