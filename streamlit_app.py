@@ -106,6 +106,62 @@ if uploaded_files:
         st.dataframe(df_all[["Nhân viên", "Nhân viên chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
 
         st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💻 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
+
+                # =====================
+        # 📊 KPI Dashboard - Tính KPI Tùy Biến
+        st.header("📊 KPI Dashboard - Tính KPI Tùy Biến")
+    
+        st.markdown("### 🔢 Dữ liệu tổng hợp ban đầu")
+        grouped_df = df_all.groupby("Nhân viên chuẩn").agg({
+            "Tương tác ≥10 câu": "sum",
+            "Group Zalo": "sum",
+            "Kết bạn trong ngày": "sum"
+        }).reset_index()
+    
+        # Đổi tên cột "Kết bạn trong ngày" thành "Lượng tham gia group Zalo"
+        grouped_df.rename(columns={"Kết bạn trong ngày": "Lượng tham gia group Zalo"}, inplace=True)
+    
+        st.dataframe(grouped_df, use_container_width=True)
+    
+        st.markdown("### ⚙️ Cấu hình KPI Tuỳ Biến")
+    
+        col1, col2, col3 = st.columns(3)
+    
+        with col1:
+            col_a = st.selectbox("Chọn cột A", grouped_df.columns[1:], key="col_a")
+        with col2:
+            operation = st.selectbox("Phép toán", ["/", "*", "+", "-"], key="operation")
+        with col3:
+            col_b = st.selectbox("Chọn cột B", grouped_df.columns[1:], key="col_b")
+    
+        kpi_name = st.text_input("Tên chỉ số KPI mới", value="Hiệu suất (%)")
+    
+        if st.button("✅ Tính KPI"):
+            try:
+                # Tính KPI
+                if operation == "/" and (grouped_df[col_b] == 0).any():
+                    st.warning("⚠️ Có giá trị chia cho 0, KPI có thể không chính xác.")
+                grouped_df[kpi_name] = grouped_df[col_a].astype(float)
+    
+                if operation == "+":
+                    grouped_df[kpi_name] = grouped_df[col_a] + grouped_df[col_b]
+                elif operation == "-":
+                    grouped_df[kpi_name] = grouped_df[col_a] - grouped_df[col_b]
+                elif operation == "*":
+                    grouped_df[kpi_name] = grouped_df[col_a] * grouped_df[col_b]
+                elif operation == "/":
+                    grouped_df[kpi_name] = grouped_df[col_a] / grouped_df[col_b]
+    
+                # Nếu tên KPI có "%", thì nhân 100 và làm tròn
+                if "%" in kpi_name:
+                    grouped_df[kpi_name] = (grouped_df[kpi_name] * 100).round(2)
+    
+                st.success(f"✅ Đã tính KPI mới: `{kpi_name}`")
+                st.dataframe(grouped_df, use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Lỗi khi tính KPI: {e}")
+
+
     else:
         st.warning("❗ Không có dữ liệu nào được trích xuất. Vui lòng kiểm tra lại file.")
 else:
