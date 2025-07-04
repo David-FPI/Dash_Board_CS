@@ -2,37 +2,38 @@ import streamlit as st
 import pandas as pd
 import re
 import os
-from unidecode import unidecode
 
 st.set_page_config(page_title="📅 Đọc Tên Nhân Viên & Tính KPI", page_icon="💼")
 
 # =====================
 # 🔧 Tự động cài package nếu thiếu
-os.system("pip install openpyxl unidecode")
+os.system("pip install openpyxl")
 
 # =====================
-# 🔧 Chuẩn hóa text để dò keyword
-
+# 🔧 Chuẩn hóa text để dò keyword (giữ nguyên Unicode)
 def normalize_text(text):
     text = str(text)
-    text = re.sub(r"[\n\r\t]+", " ", text)
-    text = re.sub(r"[^\w\s\u4e00-\u9fff]", "", text)
+    text = text.replace("\n", " ").replace("\r", " ")
     text = re.sub(r"\s+", " ", text)
-    text = unidecode(text).strip().lower()
-    return text
+    return text.strip().lower()
 
 # =====================
 # 📚 Từ điển mapping các tiêu đề cột
-
 COLUMN_MAPPING_KEYWORDS = {
-    "Tương tác ≥10 câu": ["10 cau", ">=10", "tuong tac", "so cau tuong tac"],
-    "Lượng tham gia group Zalo": ["group zalo", "tham gia zalo", "nhom zalo", "zalo group", "join group", "zalo", "join zalo", "加入zalo群数量"],
-    "Tổng số kết bạn trong ngày": ["tong so ket ban", "ket ban trong ngay", "so ket ban", "add zalo", "dang ky ket ban", "zalo add friend", "dang ngay ket ban", "当天加zalo总数"]
+    "Tương tác ≥10 câu": ["10 câu", "≥10", ">=10", "tuong tac", "so cau tuong tac"],
+    "Lượng tham gia group Zalo": [
+        "group zalo", "tham gia zalo", "nhom zalo", "zalo group",
+        "join group", "zalo", "join zalo", "加入zalo群数量"
+    ],
+    "Tổng số kết bạn trong ngày": [
+        "tong so ket ban", "ket ban trong ngay", "so ket ban",
+        "add zalo", "zalo add friend", "dang ky ket ban",
+        "当天加zalo总数"
+    ]
 }
 
 # =====================
 # 📤 Trích xuất dữ liệu từ 1 sheet
-
 def extract_data_from_sheet(df, sheet_name):
     data = []
     if df.shape[0] < 3:
@@ -43,7 +44,8 @@ def extract_data_from_sheet(df, sheet_name):
     df.columns = [normalize_text(h) for h in header_row]
     df = df[1:].reset_index(drop=True)
 
-    # Dò các cột cần thiết
+    st.caption(f"🪪 Tiêu đề sau chuẩn hóa: {list(df.columns)}")
+
     col_mapping = {}
     for standard_name, keyword_list in COLUMN_MAPPING_KEYWORDS.items():
         for col in df.columns:
@@ -59,7 +61,6 @@ def extract_data_from_sheet(df, sheet_name):
         st.warning(f"⚠️ Sheet {sheet_name} không đủ cột KPI — dò được {found_cols}")
         return []
 
-    # Điền tên nhân viên nếu bị merge cột
     if 1 in df.columns:
         df[1] = df[1].fillna(method='ffill')
 
@@ -98,7 +99,6 @@ def extract_data_from_sheet(df, sheet_name):
 
 # =====================
 # 📚 Đọc toàn bộ file Excel
-
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
     all_rows = []
@@ -115,7 +115,6 @@ def extract_all_data(file):
 
 # =====================
 # 🎯 App giao diện chính
-
 st.title("📅 Đọc Tên Nhân Viên & Tính KPI Từ File Excel Báo Cáo")
 
 uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
