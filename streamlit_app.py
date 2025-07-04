@@ -86,6 +86,42 @@ def to_excel_download(df):
         df.to_excel(writer, index=False, sheet_name='DanhSachNhanVien')
     return buffer.getvalue()
 
+# ✅ Hàm chuẩn hóa tiêu đề
+def clean_text(text):
+    if not isinstance(text, str):
+        return ""
+    text = text.strip().lower()
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
+    text = re.sub(r'[\n\r\t]+', ' ', text)  # xóa xuống dòng/tab
+    text = re.sub(r'\s+', ' ', text)
+    return text
+
+# ✅ Keyword liên quan đến "Tương tác ≥10 câu"
+KEYWORDS_TUONG_TAC = [
+    "≥10", "tuong tac", "10 cau", "≥10 cau", "≥10 câu",
+    "trao doi", "interaction", "tuong tac (≥10 cau)",
+    "tuong tac >=10"
+]
+
+# ✅ Hàm tìm cột tương tác trong dòng tiêu đề số 3 (index = 2)
+def find_column_by_keywords_row3(df):
+    """
+    Trả về tên cột nếu cột đó chứa tiêu đề liên quan đến 'Tương tác ≥10 câu'
+    """
+    if df.shape[0] < 3:
+        return None
+
+    row_headers = df.iloc[2]  # tiêu đề dòng 3 (index 2)
+    for idx, col_val in enumerate(row_headers):
+        col_clean = clean_text(str(col_val))
+        for keyword in KEYWORDS_TUONG_TAC:
+            if clean_text(keyword) in col_clean:
+                return df.columns[idx]
+    return None
+
+
+
 # ✅ Streamlit UI
 st.set_page_config(page_title="📊 Danh sách Nhân Viên", layout="wide")
 st.title("📋 Danh sách Nhân Viên từ File Excel")
@@ -105,6 +141,15 @@ if uploaded_files:
                 sheet_data_list.append({
                     'data': df,
                     'sheet_name': sheet
+
+                                # ✅ Tìm cột tương tác ≥10 câu
+                col_tuong_tac = find_column_by_keywords_row3(raw_df)
+                if col_tuong_tac:
+                    df["Tương tác ≥10 câu"] = raw_df[col_tuong_tac]
+                    st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_tuong_tac}`")
+                else:
+                    st.warning(f"⚠️ Sheet `{sheet}` không tìm thấy cột Tương tác ≥10 câu.")
+
                 })
             except Exception as e:
                 st.warning(f"⚠️ Sheet `{sheet}` lỗi: {e}")
