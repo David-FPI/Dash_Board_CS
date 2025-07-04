@@ -15,49 +15,43 @@ def normalize_text(text):
 
 # ✅ Danh sách keyword cho cột "Tương tác ≥10 câu"
 KEYWORDS_TUONG_TAC = [
-    "≥10", ">=10", "10 câu", "tuong tac", "số lượng tương tác", "tương tác 10 câu", "tương tác",
-    "互动", "số câu hỏi", "tương tác với khách", "≥10句", "互动次数"
+    "≥10", ">=10", "10 cau", "tuong tac", "so luong tuong tac", "tuong tac 10 cau", "tuong tac",
+    "互动", "so cau hoi", "tuong tac voi khach", "≥10句", "互动次数"
 ]
 
 # ✅ Danh sách keyword cho cột "Lượng tham gia group Zalo"
 KEYWORDS_GROUP_ZALO = [
-    "group zalo", "zalo group", "tham gia group", "tham gia zalo", "nhóm zalo", "zalo nhóm",
-    "zalo tham gia", "加zalo群", "加入zalo群数量", "vào group zalo", "vào nhóm zalo"
+    "group zalo", "zalo group", "tham gia group", "tham gia zalo", "nhom zalo", "zalo nhom",
+    "zalo tham gia", "加zalo群", "加入zalo群数量", "vao group zalo", "vao nhom zalo"
 ]
 
 # ✅ Hàm nhận diện cột theo từ khóa
-def is_tuong_tac_column(col):
-    normalized = normalize_text(col)
-    return any(keyword.lower() in normalized for keyword in KEYWORDS_TUONG_TAC)
+def is_tuong_tac_column(normalized_col):
+    return any(keyword.lower() in normalized_col for keyword in KEYWORDS_TUONG_TAC)
 
-def is_group_zalo_column(col):
-    normalized = normalize_text(col)
-    return any(keyword.lower() in normalized for keyword in KEYWORDS_GROUP_ZALO)
+def is_group_zalo_column(normalized_col):
+    return any(keyword.lower() in normalized_col for keyword in KEYWORDS_GROUP_ZALO)
 
 # ✅ Hàm dò và gán nhãn KPI từ danh sách tiêu đề
 def detect_kpi_columns(columns):
     result = {}
     for col in columns:
-        if is_tuong_tac_column(col):
+        if not isinstance(col, str):
+            continue
+        norm = normalize_text(col)
+        if is_tuong_tac_column(norm) and "Tương tác ≥10 câu" not in result:
             result["Tương tác ≥10 câu"] = col
-        elif is_group_zalo_column(col):
+        elif is_group_zalo_column(norm) and "Lượng tham gia group Zalo" not in result:
             result["Lượng tham gia group Zalo"] = col
     return result
 
-# ✅ Hàm chuẩn hóa tên nhân viên & loại bỏ tên không hợp lệ
+# ✅ Hàm chuẩn hóa tên nhân viên
 def normalize_name(name):
     if not isinstance(name, str):
         return ""
     name = name.strip()
     name = re.sub(r'\s+', ' ', name)
-    name = re.sub(r'\(.*?\)', '', name).strip()  # Xử lý (Event) các kiểu
     name = name.title()
-
-    # Loại các tên không hợp lệ
-    invalid_keywords = ['组员', '名字', 'test', 'demo']
-    name_normalized = normalize_text(name)
-    if any(kw in name_normalized for kw in invalid_keywords):
-        return ""
     return name
 
 # ✅ Tổng hợp dữ liệu KPI từ nhiều sheet
@@ -72,7 +66,6 @@ def summarize_kpi_across_sheets(sheet_data_list):
         if not staff_column or not kpi_columns:
             continue
 
-        # Chỉ lấy 2 KPI quan trọng
         selected_kpi = {
             "Tương tác ≥10 câu": kpi_columns.get("Tương tác ≥10 câu"),
             "Lượng tham gia group Zalo": kpi_columns.get("Lượng tham gia group Zalo")
@@ -85,11 +78,8 @@ def summarize_kpi_across_sheets(sheet_data_list):
         columns_to_keep = [staff_column] + list(selected_kpi.values())
         df_filtered = df[columns_to_keep].copy()
 
-        # Chuẩn hóa tên nhân viên
         df_filtered[staff_column] = df_filtered[staff_column].apply(normalize_name)
-        df_filtered = df_filtered[df_filtered[staff_column] != ""]
 
-        # Đổi tên cột KPI theo chuẩn
         df_filtered = df_filtered.rename(columns={v: k for k, v in selected_kpi.items()})
 
         all_data.append(df_filtered)
@@ -98,7 +88,8 @@ def summarize_kpi_across_sheets(sheet_data_list):
         return pd.DataFrame()
 
     combined_df = pd.concat(all_data, ignore_index=True)
-    summary = combined_df.groupby(staff_column, dropna=False)[["Tương tác ≥10 câu", "Lượng tham gia group Zalo"]].sum(numeric_only=True).reset_index()
+    kpi_fields = [col for col in ["Tương tác ≥10 câu", "Lượng tham gia group Zalo"] if col in combined_df.columns]
+    summary = combined_df.groupby(combined_df.columns[0], dropna=False)[kpi_fields].sum(numeric_only=True).reset_index()
     return summary
 
 # ✅ Giao diện chạy trực tiếp bằng Streamlit
@@ -114,9 +105,9 @@ if uploaded_files:
         for sheet_name in xls.sheet_names:
             try:
                 df = pd.read_excel(xls, sheet_name=sheet_name, skiprows=2)
+                st.caption(f"📄 Sheet: `{sheet_name}` — Cột: {list(df.columns)}")
                 columns = df.columns.tolist()
                 kpi_cols = detect_kpi_columns(columns)
-                # Tìm cột nhân viên (ưu tiên cột có chữ "tên nhân viên" hoặc tên ở cột B)
                 staff_col = df.columns[1] if len(df.columns) > 1 else None
                 sheet_data_list.append({
                     'data': df,
