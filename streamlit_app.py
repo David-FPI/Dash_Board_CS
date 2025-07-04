@@ -1,68 +1,71 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
-import plotly.express as px
+import re
 import os
-import re  # ✅ FIX: thiếu import thư viện regex
 
 os.system("pip install openpyxl")
 
-st.set_page_config(page_title="Đọc tên nhân viên", page_icon="📊")
+st.set_page_config(page_title="📊 Đọc tên nhân viên", page_icon="👩‍💼")
 
 # =====================
-# Hàm chuẩn hóa tên nhân viên
+# 🔧 Hàm chuẩn hóa tên nhân viên
 def clean_employee_name(name: str) -> str:
     name = str(name).strip()
-    name = re.sub(r"\n.*", "", name)  # Xoá phần sau xuống dòng nếu có
-    name = re.sub(r"\(.*?\)", "", name)  # Xoá ghi chú trong ngoặc ()
-    name = re.sub(r"\s+", " ", name)  # Chuẩn hoá khoảng trắng
-    return name.strip()
+    name = re.sub(r"\n.*", "", name)
+    name = re.sub(r"\(.*?\)", "", name)
+    name = re.sub(r"\s+", " ", name)
+    return name.strip().title()
+
 
 # =====================
-# Hàm trích xuất từng sheet
+# 📥 Đọc từng sheet
 def extract_data_from_sheet(sheet_df, sheet_name):
     data = []
-    current_nv = None
     rows = sheet_df.shape[0]
-    i = 3  # bỏ qua 3 dòng đầu
 
-    while i < rows:
+    sheet_df[1] = sheet_df[1].fillna(method='ffill')  # fill tên nhân viên từ merge
+    current_nv = None
+    empty_count = 0
+
+    for i in range(3, rows):  # bỏ 3 dòng đầu
         row = sheet_df.iloc[i]
-        name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-        if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要 làm gì", "组员"]:
+        # Xác định tên nhân viên từ cột B
+        if pd.notna(row[1]):
+            name_cell = str(row[1]).strip()
+            if name_cell.lower() in ["组员名字", "统计", "表格不要 làm gì", "tổng"]:
+                continue
             current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
 
-            empty_count = 0
-            j = i
-            while j < rows:
-                sub_row = sheet_df.iloc[j]
-                nguon = str(sub_row[2]).strip() if pd.notna(sub_row[2]) else ""
+        # Nếu không có tên thì bỏ qua
+        if not current_nv:
+            continue
 
-                if nguon == "" or nguon.lower() == "nan":
-                    empty_count += 1
-                    if empty_count >= 2:
-                        break
-                else:
-                    empty_count = 0
-                    data.append({
-                        "Nhân viên": current_nv,
-                        "Nguồn": nguon,
-                        "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
-                        "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
-                        "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
-                        "Sheet": sheet_name
-                    })
-                j += 1
-            i = j
+        # Xác định nguồn từ cột C
+        nguon = str(row[2]).strip() if pd.notna(row[2]) else ""
+        if nguon == "" or nguon.lower() == "nan":
+            empty_count += 1
+            if empty_count >= 2:
+                break  # kết thúc khối dữ liệu nếu trống liên tiếp 2 dòng
+            continue
         else:
-            i += 1
+            empty_count = 0
+
+        # Lưu lại dòng hợp lệ
+        data.append({
+            "Nhân viên": current_nv,
+            "Nguồn": nguon,
+            "Tương tác ≥10 câu": pd.to_numeric(row[15], errors="coerce"),
+            "Group Zalo": pd.to_numeric(row[18], errors="coerce"),
+            "Kết bạn trong ngày": pd.to_numeric(row[12], errors="coerce"),
+            "Sheet": sheet_name
+        })
 
     return data
 
+
 # =====================
-# Hàm đọc toàn bộ file Excel
+# 📤 Đọc toàn bộ file Excel
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
     all_rows = []
@@ -79,9 +82,12 @@ def extract_all_data(file):
 
     return pd.DataFrame(all_rows)
 
+
 # =====================
-# Upload file
-uploaded_files = st.file_uploader("📥 Kéo nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
+# Giao diện upload
+st.title("📥 Đọc Tên Nhân Viên Từ File Excel Báo Cáo")
+
+uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
     all_data = []
@@ -93,14 +99,14 @@ if uploaded_files:
     df_all = pd.concat(all_data, ignore_index=True)
 
     if not df_all.empty:
-        # Chuẩn hoá tên nhân viên
+        # Chuẩn hóa tên nhân viên
         df_all["Nhân viên chuẩn"] = df_all["Nhân viên"].apply(clean_employee_name)
 
-        st.subheader("✅ Danh sách nhân viên đã chuẩn hóa")
+        st.subheader("✅ Danh sách Nhân viên đã chuẩn hóa")
         st.dataframe(df_all[["Nhân viên", "Nhân viên chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
 
         st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💻 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
     else:
-        st.warning("⚠️ Không có dữ liệu nào được đọc từ file. Vui lòng kiểm tra lại cấu trúc file.")
+        st.warning("❗ Không có dữ liệu nào được trích xuất. Vui lòng kiểm tra lại file.")
 else:
     st.info("📎 Vui lòng upload file Excel để bắt đầu.")
