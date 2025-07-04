@@ -1,12 +1,19 @@
-# 🔄 Code cập nhật: thêm cột 'Xuất hiện ở các sheet'
-
 import unicodedata
 import re
 import pandas as pd
 import streamlit as st
 from collections import defaultdict
+from io import BytesIO
 
-# ✅ Hàm chuẩn hóa text
+# ✅ Chuẩn hóa tên
+def normalize_name(name):
+    if not isinstance(name, str):
+        return ""
+    name = re.sub(r"\(.*?\)", "", name)
+    name = re.sub(r"\s+", " ", name).strip().title()
+    return name
+
+# ✅ Chuẩn hóa text để so sánh
 def normalize_text(text):
     if not isinstance(text, str):
         return ""
@@ -16,15 +23,7 @@ def normalize_text(text):
     text = re.sub(r'\s+', ' ', text)
     return text
 
-# ✅ Chuẩn hóa tên nhân viên
-def normalize_name(name):
-    if not isinstance(name, str):
-        return ""
-    name = re.sub(r"\(.*?\)", "", name)
-    name = re.sub(r'\s+', ' ', name).strip().title()
-    return name
-
-# ✅ Lấy tên nhân viên theo block merge
+# ✅ Tách dữ liệu nhân viên từ cột B (index = 1), kết thúc khi có 2 dòng trống liên tiếp
 def extract_data_with_staff(df, staff_col_index=1):
     df = df.copy()
     df = df.dropna(how='all')
@@ -56,44 +55,71 @@ def extract_data_with_staff(df, staff_col_index=1):
     df.rename(columns={staff_col: "Tên nhân viên"}, inplace=True)
     return df
 
-# ✅ Giao diện Streamlit
-st.set_page_config(page_title="📊 KPI Dashboard", layout="wide")
+# ✅ Tạo bảng tổng hợp nhân viên + sheet xuất hiện
+def build_staff_sheet_summary(sheet_data_list):
+    staff_sheets = defaultdict(set)
+
+    for item in sheet_data_list:
+        df = item['data']
+        sheet_name = item['sheet_name']
+        for name in df["Tên nhân viên"]:
+            if not name or normalize_text(name) in ["", "组员", "组员名字", "nan"]:
+                continue
+            staff_sheets[name].add(sheet_name)
+
+    rows = []
+    for idx, (name, sheets) in enumerate(sorted(staff_sheets.items()), start=1):
+        sheet_list = sorted(list(sheets))
+        rows.append({
+            "STT": idx,
+            "Tên nhân viên": name,
+            "Xuất hiện ở các sheet": ", ".join(sheet_list),
+            "Số lần xuất hiện": len(sheets)
+        })
+
+    return pd.DataFrame(rows)
+
+# ✅ Chuyển DataFrame thành file tải về
+def to_excel_download(df):
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='DanhSachNhanVien')
+    return buffer.getvalue()
+
+# ✅ Streamlit UI
+st.set_page_config(page_title="📊 Danh sách Nhân Viên", layout="wide")
 st.title("📋 Danh sách Nhân Viên từ File Excel")
 
-uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("📁 Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
-    name_to_sheets = defaultdict(set)
-
-    for file in uploaded_files:
-        xls = pd.ExcelFile(file)
-        for sheet_name in xls.sheet_names:
+    sheet_data_list = []
+    for uploaded_file in uploaded_files:
+        file_name = uploaded_file.name
+        xls = pd.ExcelFile(uploaded_file)
+        for sheet in xls.sheet_names:
             try:
-                raw_df = pd.read_excel(xls, sheet_name=sheet_name, skiprows=2)
+                raw_df = pd.read_excel(xls, sheet_name=sheet, skiprows=2)
                 df = extract_data_with_staff(raw_df, staff_col_index=1)
-                st.caption(f"📄 Sheet: `{sheet_name}` — Cột: {list(df.columns)}")
-
-                for name in df['Tên nhân viên']:
-                    if name and normalize_text(name) not in ["nan", "", "zuoyuan", "zuoyuan mingzi"]:
-                        name_to_sheets[normalize_name(name)].add(sheet_name)
-
+                st.caption(f"📄 File: `{file_name}` — Sheet: `{sheet}` — {df.shape[0]} dòng")
+                sheet_data_list.append({
+                    'data': df,
+                    'sheet_name': sheet
+                })
             except Exception as e:
-                st.warning(f"❗ Sheet {sheet_name} lỗi: {e}")
+                st.warning(f"⚠️ Sheet `{sheet}` lỗi: {e}")
 
-    # ======= Hiển thị bảng tổng hợp
-    if name_to_sheets:
-        data = []
-        for name, sheets in name_to_sheets.items():
-            data.append({
-                "Tên nhân viên chuẩn hóa": name,
-                "Xuất hiện ở các sheet": ", ".join(sorted(sheets)),
-                "Số lần xuất hiện": len(sheets)
-            })
-        df_result = pd.DataFrame(data).sort_values("Tên nhân viên chuẩn hóa")
+    df_summary = build_staff_sheet_summary(sheet_data_list)
 
-        st.dataframe(df_result, use_container_width=True)
-        st.success(f"✅ Tổng cộng có {len(df_result)} nhân viên duy nhất sau chuẩn hóa.")
+    if not df_summary.empty:
+        st.success(f"✅ Tổng cộng có {df_summary.shape[0]} nhân viên duy nhất sau chuẩn hóa.")
+        st.dataframe(df_summary, use_container_width=True)
 
-        st.download_button("📥 Tải danh sách nhân viên", data=df_result.to_csv(index=False).encode('utf-8-sig'), file_name="danh_sach_nhan_vien.csv", mime="text/csv")
+        st.download_button(
+            label="📥 Tải danh sách nhân viên",
+            data=to_excel_download(df_summary),
+            file_name="tong_hop_nhan_vien.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     else:
-        st.error("❌ Không tìm được nhân viên nào.")
+        st.error("❌ Không tìm được nhân viên hợp lệ.")
