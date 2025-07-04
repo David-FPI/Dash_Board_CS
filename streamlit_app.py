@@ -26,35 +26,37 @@ def extract_data_from_sheet(sheet_df, sheet_name):
 
     while i < rows:
         row = sheet_df.iloc[i]
-        name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
+        # Nếu có tên mới thì cập nhật current_nv
+        if pd.notna(row[1]) and str(row[1]).strip().lower() not in ["", "nan", "组员名字", "表格不要 làm gì"]:
+            current_nv = re.sub(r"\(.*?\)", "", str(row[1])).strip()
 
-        if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要 làm gì"]:
-            current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
+        empty_count = 0
+        j = i
+        while j < rows:
+            sub_row = sheet_df.iloc[j]
 
-            empty_count = 0
-            j = i
-            while j < rows:
-                sub_row = sheet_df.iloc[j]
-                nguon = str(sub_row[2]).strip() if pd.notna(sub_row[2]) else ""
+            # Nếu có tên nhân viên mới ở dòng này, cập nhật lại current_nv
+            if pd.notna(sub_row[1]) and str(sub_row[1]).strip().lower() not in ["", "nan", "组员名字", "表格不要 làm gì"]:
+                current_nv = re.sub(r"\(.*?\)", "", str(sub_row[1])).strip()
 
-                if nguon == "" or nguon.lower() == "nan":
-                    empty_count += 1
-                    if empty_count >= 2:
-                        break
-                else:
-                    empty_count = 0
-                    data.append({
-                        "Nhân viên": current_nv,
-                        "Nguồn": nguon,
-                        "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
-                        "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
-                        "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
-                        "Sheet": sheet_name
-                    })
-                j += 1
-            i = j
-        else:
-            i += 1
+            nguon = str(sub_row[2]).strip() if pd.notna(sub_row[2]) else ""
+
+            if nguon == "" or nguon.lower() == "nan":
+                empty_count += 1
+                if empty_count >= 2:
+                    break
+            else:
+                empty_count = 0
+                data.append({
+                    "Nhân viên": current_nv,
+                    "Nguồn": nguon,
+                    "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
+                    "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+                    "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
+                    "Sheet": sheet_name
+                })
+            j += 1
+        i = j
 
     return data
 
