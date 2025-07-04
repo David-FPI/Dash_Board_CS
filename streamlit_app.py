@@ -44,13 +44,20 @@ def detect_kpi_columns(columns):
             result["Lượng tham gia group Zalo"] = col
     return result
 
-# ✅ Hàm chuẩn hóa tên nhân viên
+# ✅ Hàm chuẩn hóa tên nhân viên & loại bỏ tên không hợp lệ
 def normalize_name(name):
     if not isinstance(name, str):
         return ""
     name = name.strip()
     name = re.sub(r'\s+', ' ', name)
+    name = re.sub(r'\(.*?\)', '', name).strip()  # Xử lý (Event) các kiểu
     name = name.title()
+
+    # Loại các tên không hợp lệ
+    invalid_keywords = ['组员', '名字', 'test', 'demo']
+    name_normalized = normalize_text(name)
+    if any(kw in name_normalized for kw in invalid_keywords):
+        return ""
     return name
 
 # ✅ Tổng hợp dữ liệu KPI từ nhiều sheet
@@ -80,6 +87,7 @@ def summarize_kpi_across_sheets(sheet_data_list):
 
         # Chuẩn hóa tên nhân viên
         df_filtered[staff_column] = df_filtered[staff_column].apply(normalize_name)
+        df_filtered = df_filtered[df_filtered[staff_column] != ""]
 
         # Đổi tên cột KPI theo chuẩn
         df_filtered = df_filtered.rename(columns={v: k for k, v in selected_kpi.items()})
@@ -90,7 +98,7 @@ def summarize_kpi_across_sheets(sheet_data_list):
         return pd.DataFrame()
 
     combined_df = pd.concat(all_data, ignore_index=True)
-    summary = combined_df.groupby(staff_column, dropna=False).sum(numeric_only=True).reset_index()
+    summary = combined_df.groupby(staff_column, dropna=False)[["Tương tác ≥10 câu", "Lượng tham gia group Zalo"]].sum(numeric_only=True).reset_index()
     return summary
 
 # ✅ Giao diện chạy trực tiếp bằng Streamlit
