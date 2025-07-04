@@ -7,42 +7,47 @@ from unidecode import unidecode
 st.set_page_config(page_title="📅 Đọc Tên Nhân Viên & Tính KPI", page_icon="💼")
 
 # =====================
-# 🔧 Tự động cài package (nếu chưa có)
+# 🔧 Tự động cài package nếu thiếu
 os.system("pip install openpyxl unidecode")
 
 # =====================
-# 🔧 Chuẩn hóa text để so sánh
+# 🔧 Chuẩn hóa text để dò keyword
 
 def normalize_text(text):
-    text = str(text).lower()
-    text = re.sub(r"[\n\r]+", " ", text)
+    text = str(text)
+    text = re.sub(r"[\n\r\t]+", " ", text)
+    text = re.sub(r"[^\w\s]", "", text)
     text = re.sub(r"\s+", " ", text)
-    text = unidecode(text.strip())
+    text = unidecode(text).strip().lower()
     return text
 
 # =====================
-# 🖊️ Từ điển keyword để mapping cột
+# 📚 Từ điển mapping các tiêu đề cột
+
 COLUMN_MAPPING_KEYWORDS = {
     "Tương tác ≥10 câu": ["10 cau", ">=10", "tuong tac", "so cau tuong tac"],
-    "Lượng tham gia group Zalo": ["group zalo", "tham gia zalo", "nhom zalo", "zalo group", "join group", "zalo"],
-    "Tổng số kết bạn trong ngày": ["ket ban", "tong so ket ban", "ket ban trong ngay", "add zalo"]
+    "Lượng tham gia group Zalo": ["group zalo", "tham gia zalo", "nhom zalo", "zalo group", "join group", "zalo", "join zalo"],
+    "Tổng số kết bạn trong ngày": ["tong so ket ban", "ket ban trong ngay", "so ket ban", "add zalo", "dang ky ket ban", "zalo add friend"]
 }
 
 # =====================
-# 📂 Trích xuất dữ liệu từ sheet
+# 📤 Trích xuất dữ liệu từ 1 sheet
 
 def extract_data_from_sheet(df, sheet_name):
     data = []
-    rows = df.shape[0]
+    if df.shape[0] < 3:
+        return []
 
     df = df.iloc[2:].reset_index(drop=True)
-    df.columns = [normalize_text(col) for col in df.iloc[0]]
+    header_row = df.iloc[0].fillna("")
+    df.columns = [normalize_text(h) for h in header_row]
     df = df[1:].reset_index(drop=True)
 
+    # Dò các cột cần thiết
     col_mapping = {}
-    for standard_name, keywords in COLUMN_MAPPING_KEYWORDS.items():
+    for standard_name, keyword_list in COLUMN_MAPPING_KEYWORDS.items():
         for col in df.columns:
-            for keyword in keywords:
+            for keyword in keyword_list:
                 if keyword in col:
                     col_mapping[standard_name] = col
                     break
@@ -54,6 +59,7 @@ def extract_data_from_sheet(df, sheet_name):
         st.warning(f"⚠️ Sheet {sheet_name} không đủ cột KPI — dò được {found_cols}")
         return []
 
+    # Điền tên nhân viên nếu bị merge cột
     if 1 in df.columns:
         df[1] = df[1].fillna(method='ffill')
 
@@ -78,17 +84,20 @@ def extract_data_from_sheet(df, sheet_name):
         else:
             empty_count = 0
 
-        data.append({
+        row_data = {
             "Nhân viên": current_nv,
             "Nguồn": nguon,
             "Sheet": sheet_name,
-            **{k: pd.to_numeric(row[col_mapping[k]], errors="coerce") for k in col_mapping}
-        })
+        }
+        for k, v in col_mapping.items():
+            row_data[k] = pd.to_numeric(row.get(v, None), errors="coerce")
+
+        data.append(row_data)
 
     return data
 
 # =====================
-# 📃 Xử lý toàn bộ file
+# 📚 Đọc toàn bộ file Excel
 
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
@@ -97,8 +106,6 @@ def extract_all_data(file):
     for sheet_name in xls.sheet_names:
         try:
             df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
-            if df.shape[0] < 10:
-                continue
             extracted = extract_data_from_sheet(df, sheet_name)
             all_rows.extend(extracted)
         except Exception as e:
@@ -107,7 +114,7 @@ def extract_all_data(file):
     return pd.DataFrame(all_rows)
 
 # =====================
-# 📅 Giao diện Streamlit
+# 🎯 App giao diện chính
 
 st.title("📅 Đọc Tên Nhân Viên & Tính KPI Từ File Excel Báo Cáo")
 
@@ -128,11 +135,9 @@ if uploaded_files:
         st.subheader("✅ Danh sách Nhân viên đã chuẩn hóa")
         st.dataframe(df_all[["Nhân viên", "Nhân viên chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
 
-        tong_dong = len(df_all)
-        so_nv = df_all["Nhân viên chuẩn"].nunique()
-        st.success(f"✅ Tổng số dòng dữ liệu: {tong_dong} — 👩‍💼 Nhân viên duy nhất: {so_nv}")
+        st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💼 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
 
-        # ========== KPI Tuỳ Biến ==========
+        # ================= KPI TUỲ BIẾN ================
         st.header("📊 KPI Dashboard - Tính KPI Tuỳ Biến")
         st.subheader("🔢 Dữ liệu tổng hợp ban đầu")
         st.dataframe(df_all.head(), use_container_width=True)
@@ -153,6 +158,7 @@ if uploaded_files:
                     df_all[kpi_name] = df_all[kpi_col1] + df_all[kpi_col2]
                 elif operator == "-":
                     df_all[kpi_name] = df_all[kpi_col1] - df_all[kpi_col2]
+
                 st.success(f"✅ KPI mới đã được tính: {kpi_name}")
                 st.dataframe(df_all[["Nhân viên chuẩn", kpi_name, "Sheet"]], use_container_width=True)
             except Exception as e:
@@ -160,4 +166,4 @@ if uploaded_files:
     else:
         st.warning("❗ Không có dữ liệu nào được trích xuất. Vui lòng kiểm tra file.")
 else:
-    st.info("📁 Vui lòng upload file Excel để bắt đầu.")
+    st.info("📎 Vui lòng upload file Excel để bắt đầu.")
