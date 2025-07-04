@@ -57,6 +57,8 @@ if uploaded_files:
                 continue
 
             col_B = df.iloc[3:, 1]  # Bỏ B1:B3
+            st.write(f"Sheet: {sheet_name}")  # Debug
+            st.dataframe(col_B.head(20))       # Debug: xem trực tiếp 20 dòng đầu của cột B
             names = extract_names_from_column(col_B)
             sheet_presence[sheet_name] = names
             all_names.update(names)
@@ -90,7 +92,7 @@ if uploaded_files:
         return output.getvalue()
 
     st.download_button(
-        label="📥 Tải bảng thống kê nhân viên",
+        label="📅 Tải bảng thống kê nhân viên",
         data=to_excel(df_summary),
         file_name="Thong_Ke_Nhan_Vien.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
