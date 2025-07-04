@@ -6,16 +6,6 @@ import plotly.express as px
 import os
 os.system("pip install openpyxl")
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='KPI dashboard Tool',
-    page_icon=':earth_americas:',
-)
-import streamlit as st
-import pandas as pd
-import re
-import os
-os.system("pip install openpyxl")
 
 st.set_page_config(page_title="Đọc tên nhân viên", page_icon="📊")
 
@@ -28,36 +18,46 @@ def clean_employee_name(name: str) -> str:
     name = re.sub(r"\s+", " ", name)  # Chuẩn hoá khoảng trắng
     return name.strip()
 
-# =====================
-# Hàm trích xuất từng sheet
 def extract_data_from_sheet(sheet_df, sheet_name):
     data = []
     current_nv = None
     rows = sheet_df.shape[0]
+    i = 3  # bỏ qua 3 dòng đầu
 
-    i = 3  # bắt đầu từ dòng 4
     while i < rows:
         row = sheet_df.iloc[i]
         name_cell = str(row[1]).strip() if pd.notna(row[1]) else ""
 
-        if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要做任何调整，除前两列，其余全是公式"]:
-            current_nv = name_cell
-            for j in range(i, i + 6):
-                if j >= rows:
-                    break
+        if name_cell and name_cell.lower() not in ["nan", "组员名字", "表格不要 làm gì"]:
+            current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
+
+            empty_count = 0
+            j = i
+            while j < rows:
                 sub_row = sheet_df.iloc[j]
-                nguon = sub_row[2]
-                if pd.isna(nguon) or str(nguon).strip() in ["", "0"]:
-                    break
-                data.append({
-                    "Nhân viên": current_nv.strip(),
-                    "Nguồn": str(nguon).strip(),
-                    "Sheet": sheet_name
-                })
-            i += 6
+                nguon = str(sub_row[2]).strip() if pd.notna(sub_row[2]) else ""
+
+                if nguon == "" or nguon.lower() == "nan":
+                    empty_count += 1
+                    if empty_count >= 2:
+                        break
+                else:
+                    empty_count = 0
+                    data.append({
+                        "Nhân viên": current_nv,
+                        "Nguồn": nguon,
+                        "Tương tác ≥10 câu": pd.to_numeric(sub_row[15], errors="coerce"),
+                        "Group Zalo": pd.to_numeric(sub_row[18], errors="coerce"),
+                        "Kết bạn trong ngày": pd.to_numeric(sub_row[12], errors="coerce"),
+                        "Sheet": sheet_name
+                    })
+                j += 1
+            i = j
         else:
             i += 1
+
     return data
+
 
 # =====================
 # Hàm đọc toàn bộ file Excel
