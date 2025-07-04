@@ -85,6 +85,11 @@ def extract_data_with_staff(df, staff_col_index=1):
 
     df[staff_col] = df[staff_col].apply(normalize_name)
     df.rename(columns={staff_col: "Tên nhân viên"}, inplace=True)
+
+    # Lọc bỏ tên không hợp lệ
+    invalid_names = ["组员", "组员名字", ""]
+    df = df[~df["Tên nhân viên"].isin(invalid_names)]
+
     return df
 
 # ✅ Tổng hợp KPI
