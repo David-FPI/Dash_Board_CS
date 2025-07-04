@@ -4,31 +4,10 @@ import re
 import os
 from unidecode import unidecode
 
-os.system("pip install openpyxl")
+st.set_page_config(page_title="📊 Đọc tên nhân viên & Tính KPI", page_icon="👩‍💼")
 
-st.set_page_config(page_title="📥 Đọc Nhân Viên & Tính KPI", page_icon="📊")
-
-# ========== Hàm chuẩn hóa tiêu đề ==========
-def clean_col_name(col):
-    col = str(col)
-    col = re.sub(r"\s+", " ", col.replace("\n", " "))  # bỏ xuống dòng và khoảng trắng
-    col = unidecode(col).lower().strip()
-    return col
-
-# ========== Dò cột theo keyword ==========
-def map_columns(cols):
-    mapping = {}
-    for i, col in enumerate(cols):
-        col_clean = clean_col_name(col)
-        if "≥10" in col_clean or ">=10" in col_clean:
-            mapping["Tương tác ≥10 câu"] = i
-        elif "group zalo" in col_clean or "zalo group" in col_clean:
-            mapping["Lượng tham gia group Zalo"] = i
-        elif "ket ban" in col_clean and "trong ngay" in col_clean:
-            mapping["Tổng số kết bạn trong ngày"] = i
-    return mapping
-
-# ========== Chuẩn hóa tên nhân viên ==========
+# =====================
+# 🔧 Chuẩn hóa tên nhân viên
 def clean_employee_name(name: str) -> str:
     name = str(name).strip()
     name = re.sub(r"\n.*", "", name)
@@ -36,36 +15,48 @@ def clean_employee_name(name: str) -> str:
     name = re.sub(r"\s+", " ", name)
     return name.strip().title()
 
-# ========== Đọc từng sheet ==========
+# =====================
+# 🔧 Tiên xử lý tiêu đề header (dò theo keyword linh hoạt)
+def detect_kpi_columns(header_row):
+    mapping = {}
+    for i, col in enumerate(header_row):
+        text = unidecode(str(col)).lower()
+        text = re.sub(r"\s+", " ", text.replace("\n", " ").replace("\t", " ")).strip()
+
+        if ">=10" in text:
+            mapping["Tương tác ≥10 câu"] = i
+        elif ("group" in text and "zalo" in text):
+            mapping["Lượng tham gia group Zalo"] = i
+        elif ("ket ban" in text and "trong ngay" in text):
+            mapping["Tổng số kết bạn trong ngày"] = i
+
+    return mapping
+
+# =====================
+# 📅 Đọc 1 sheet duy nhất
 def extract_data_from_sheet(sheet_df, sheet_name):
     data = []
-    sheet_df = sheet_df.drop([0,1])  # Bỏ dòng 1 và 2
-    sheet_df = sheet_df.reset_index(drop=True)
+    sheet_df = sheet_df.drop([0, 1])  # bỏ dòng 1, 2
+    header_row = sheet_df.iloc[0]
+    sheet_df = sheet_df[1:].reset_index(drop=True)
+    kpi_columns = detect_kpi_columns(header_row)
 
-    header = sheet_df.iloc[0]
-    sheet_df = sheet_df[1:]
-    sheet_df.columns = header
-
-    if sheet_df.shape[0] < 5:
+    if len(kpi_columns) < 3:
+        st.warning(f"⚠️ Sheet {sheet_name} không đủ cột KPI — dò được {list(kpi_columns.keys())}")
         return []
 
-    col_mapping = map_columns(sheet_df.columns)
-
-    if len(col_mapping) < 3:
-        st.warning(f"⚠️ Sheet `{sheet_name}` không đủ cột KPI — dò được {list(col_mapping.keys())}")
-        return []
-
-    sheet_df = sheet_df.reset_index(drop=True)
-    sheet_df["NV"] = sheet_df.iloc[:,1].fillna(method="ffill")
-
+    sheet_df[1] = sheet_df[1].fillna(method='ffill')
     current_nv = None
     empty_count = 0
 
-    for idx, row in sheet_df.iterrows():
-        name_cell = str(row["NV"]).strip()
-        if name_cell.lower() in ["组员名字", "统计", "表格不要 làm gì", "tổng"]:
+    for _, row in sheet_df.iterrows():
+        if pd.notna(row[1]):
+            name_cell = str(row[1]).strip()
+            if name_cell.lower() in ["组员名字", "统计", "表格不要做什么", "tổng"]:
+                continue
+            current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
+        if not current_nv:
             continue
-        current_nv = clean_employee_name(name_cell)
 
         nguon = str(row[2]).strip() if pd.notna(row[2]) else ""
         if nguon == "" or nguon.lower() == "nan":
@@ -79,29 +70,37 @@ def extract_data_from_sheet(sheet_df, sheet_name):
         data.append({
             "Nhân viên": current_nv,
             "Nguồn": nguon,
-            "Tương tác ≥10 câu": row[col_mapping["Tương tác ≥10 câu"]],
-            "Lượng tham gia group Zalo": row[col_mapping["Lượng tham gia group Zalo"]],
-            "Tổng số kết bạn trong ngày": row[col_mapping["Tổng số kết bạn trong ngày"]],
+            "Tương tác ≥10 câu": row[kpi_columns["Tương tác ≥10 câu"]],
+            "Lượng tham gia group Zalo": row[kpi_columns["Lượng tham gia group Zalo"]],
+            "Tổng số kết bạn trong ngày": row[kpi_columns["Tổng số kết bạn trong ngày"]],
             "Sheet": sheet_name
         })
 
     return data
 
-# ========== Đọc file ==========
+# =====================
+# 📅 Xử lý nhiều file
+
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
     all_rows = []
+
     for sheet_name in xls.sheet_names:
         try:
             df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+            if df.shape[0] < 10 or df.shape[1] < 5:
+                continue
             extracted = extract_data_from_sheet(df, sheet_name)
             all_rows.extend(extracted)
         except Exception as e:
-            st.warning(f"❌ Lỗi sheet {sheet_name}: {e}")
+            st.warning(f"❌ Lỗi sheet '{sheet_name}': {e}")
+
     return pd.DataFrame(all_rows)
 
-# ========== Giao diện ==========
+# =====================
+# 📁 Giao diện Streamlit
 st.title("📥 Đọc Tên Nhân Viên & Tính KPI Từ File Excel Báo Cáo")
+
 uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -118,31 +117,9 @@ if uploaded_files:
 
         st.subheader("✅ Danh sách Nhân viên đã chuẩn hóa")
         st.dataframe(df_all[["Nhân viên", "Nhân viên chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
-        st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💻 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
 
-        # KPI Dashboard
-        st.markdown("### 📊 KPI Dashboard - Tính KPI Tùy Biến")
-        st.markdown("#### 🔢 Dữ liệu tổng hợp ban đầu")
-        st.dataframe(df_all.head(20), use_container_width=True)
-
-        st.markdown("#### ⚙️ Cấu hình KPI Tuỳ Biến")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            col_a = st.selectbox("Chọn cột A", df_all.columns[2:5])
-        with col2:
-            operation = st.selectbox("Phép toán", ["/", "*", "+", "-"])
-        with col3:
-            col_b = st.selectbox("Chọn cột B", df_all.columns[2:5])
-        new_kpi = st.text_input("Tên chỉ số KPI mới", "Hiệu suất (%)")
-
-        if st.button("✅ Tính KPI"):
-            try:
-                df_all[new_kpi] = eval(f"df_all['{col_a}'] {operation} df_all['{col_b}']")
-                st.success(f"✅ Đã tính KPI mới: {new_kpi}")
-                st.dataframe(df_all[[col_a, col_b, new_kpi, "Nhân viên chuẩn"]].head(20), use_container_width=True)
-            except Exception as e:
-                st.error(f"❌ Lỗi khi tính KPI: {e}")
+        st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💼 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
     else:
-        st.warning("❗ Không có dữ liệu nào hợp lệ.")
+        st.warning("❗ Không có dữ liệu hợp lệ. Kiểm tra file.")
 else:
-    st.info("📎 Vui lòng upload file Excel để bắt đầu.")
+    st.info("📎 Upload file Excel để bắt đầu.")
