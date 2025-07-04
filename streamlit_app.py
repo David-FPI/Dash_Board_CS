@@ -27,7 +27,7 @@ def normalize_text(text):
 COLUMN_MAPPING_KEYWORDS = {
     "Tương tác ≥10 câu": ["10 cau", ">=10", "tuong tac", "so cau tuong tac"],
     "Lượng tham gia group Zalo": ["group zalo", "tham gia zalo", "nhom zalo", "zalo group", "join group", "zalo", "join zalo"],
-    "Tổng số kết bạn trong ngày": ["tong so ket ban", "ket ban trong ngay", "so ket ban", "add zalo", "dang ky ket ban", "zalo add friend"]
+    "Tổng số kết bạn trong ngày": ["tong so ket ban", "ket ban trong ngay", "so ket ban", "add zalo", "dang ky ket ban", "zalo add friend", "tong so\nket ban\ntrong ngay"]
 }
 
 # =====================
@@ -59,7 +59,6 @@ def extract_data_from_sheet(df, sheet_name):
         st.warning(f"⚠️ Sheet {sheet_name} không đủ cột KPI — dò được {found_cols}")
         return []
 
-    # Điền tên nhân viên nếu bị merge cột
     if 1 in df.columns:
         df[1] = df[1].fillna(method='ffill')
 
