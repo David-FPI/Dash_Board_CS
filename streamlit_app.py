@@ -1,68 +1,73 @@
 import streamlit as st
 import pandas as pd
 import re
+import os
 from unidecode import unidecode
 
-st.set_page_config(page_title="📊 Đọc tên nhân viên & Tính KPI", page_icon="👩‍💼")
+st.set_page_config(page_title="\ud83d\udcc5 \u0110\u1ecdc T\u00ean Nh\u00e2n Vi\u00ean & T\u00ednh KPI", page_icon="\ud83d\udcbc")
 
 # =====================
-# 🔧 Các keyword linh hoạt để match các cột
-COLUMN_KEYWORDS = {
-    "Tương tác ≥10 câu": [">=10", "≥10", "tuong tac", "so tuong tac", "tương tác"],
-    "Lượng tham gia group Zalo": ["group zalo", "tham gia group", "luong tham gia", "zalo nhom", "zalo group", "nhom zalo", "zalo", "tham gia zalo", "zalo tham gia", "zalo group join", "nhậu zalo", "加入zalo群数量"],
-    "Tổng số kết bạn trong ngày": ["ket ban", "so ket ban", "tong ket ban", "tong so ket ban", "ket ban trong ngay", "zalo", "ket ban zalo", "ngay", "ketban", "当天加zalo"]
+# \ud83d\udd27 T\u1ef1 \u0111\u1ed9ng c\u00e0i package (n\u1ebfu ch\u01b0a c\u00f3)
+os.system("pip install openpyxl unidecode")
+
+# =====================
+# \ud83d\udd27 Chu\u1ea9n h\u00f3a text \u0111\u1ec3 so s\u00e1nh
+
+def normalize_text(text):
+    text = str(text).lower()
+    text = re.sub(r"[\n\r]+", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    text = unidecode(text.strip())
+    return text
+
+# =====================
+# \ud83d\udd8a\ufe0f T\u1eeb \u0111i\u1ec3n keyword \u0111\u1ec3 mapping c\u1ed9t
+COLUMN_MAPPING_KEYWORDS = {
+    "T\u01b0\u01a1ng t\u00e1c \u226510 c\u00e2u": ["10 cau", ">=10", "tuong tac", "so cau tuong tac"],
+    "L\u01b0\u1ee3ng tham gia group Zalo": ["group zalo", "tham gia zalo", "nhom zalo", "zalo group", "join group", "zalo"],
+    "T\u1ed5ng s\u1ed1 k\u1ebft b\u1ea1n trong ng\u00e0y": ["ket ban", "tong so ket ban", "ket ban trong ngay", "add zalo"]
 }
 
 # =====================
-# 🔧 Chuẩn hóa text để match header
-
-def normalize_text(text):
-    text = str(text).replace("\n", " ").replace("\r", " ")
-    text = unidecode(text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip().lower()
-
-# =====================
-# 🔍 Tìm vị trí cột theo keyword
-
-def match_column_indices(header_row):
-    mapping = {}
-    for idx, col in enumerate(header_row):
-        col_clean = normalize_text(col)
-        for target_name, keyword_list in COLUMN_KEYWORDS.items():
-            if any(kw in col_clean for kw in keyword_list):
-                mapping[target_name] = idx
-    return mapping
-
-# =====================
-# 📅 Đọc dữ liệu từ sheet
+# \ud83d\udcc2 Tr\u00edch xu\u1ea5t d\u1eef li\u1ec7u t\u1eeb sheet
 
 def extract_data_from_sheet(df, sheet_name):
     data = []
-    if df.shape[0] < 5:
-        return data, []
+    rows = df.shape[0]
 
-    df.columns = range(df.shape[1])  # reset column index
-    df = df.drop([0, 1])  # Bỏ 2 dòng đầu
-    header = df.iloc[0]
+    # Lo\u1ea1i b\u1ecf 2 d\u00f2ng \u0111\u1ea7u \u0111\u1ec3 l\u1ea5y header d\u00f2ng 3
+    df = df.iloc[2:].reset_index(drop=True)
+    df.columns = [normalize_text(col) for col in df.iloc[0]]
     df = df[1:].reset_index(drop=True)
-    col_map = match_column_indices(header)
 
-    if len(col_map) < 2:
-        return [], list(col_map.keys())
+    # Mapping column names
+    col_mapping = {}
+    for standard_name, keywords in COLUMN_MAPPING_KEYWORDS.items():
+        for col in df.columns:
+            for keyword in keywords:
+                if keyword in col:
+                    col_mapping[standard_name] = col
+                    break
+            if standard_name in col_mapping:
+                break
 
-    df[1] = df[1].fillna(method="ffill")
+    found_cols = list(col_mapping.keys())
+    if len(found_cols) < 3:
+        st.warning(f"\u26a0\ufe0f Sheet {sheet_name} kh\u00f4ng \u0111\u1ee7 c\u1ed9t KPI \u2014 d\u00f2 \u0111\u01b0\u1ee3c {found_cols}")
+        return []
+
+    # Fill tên nhân viên từ cột B
+    if 1 in df.columns:
+        df[1] = df[1].fillna(method='ffill')
+
     current_nv = None
     empty_count = 0
-
-    for i in range(df.shape[0]):
-        row = df.iloc[i]
-
+    for _, row in df.iterrows():
         if pd.notna(row[1]):
             name_cell = str(row[1]).strip()
-            if name_cell.lower() in ["nhan vien", "tong", "stat"]:
+            if name_cell.lower() in ["\u7ec4\u5458\u540d\u5b57", "\u7edf\u8ba1", "b\u1ea3ng t\u1ed5ng", "t\u1ed5ng"]:
                 continue
-            current_nv = re.sub(r"\(.*?\)", "", name_cell).strip()
+            current_nv = re.sub(r"\\(.*?\\)", "", name_cell).strip()
 
         if not current_nv:
             continue
@@ -77,56 +82,83 @@ def extract_data_from_sheet(df, sheet_name):
             empty_count = 0
 
         data.append({
-            "Nhân viên": current_nv,
-            "Nguồn": nguon,
-            "Tương tác ≥10 câu": row.get(col_map.get("Tương tác ≥10 câu")),
-            "Lượng tham gia group Zalo": row.get(col_map.get("Lượng tham gia group Zalo")),
-            "Tổng số kết bạn trong ngày": row.get(col_map.get("Tổng số kết bạn trong ngày")),
-            "Sheet": sheet_name
+            "Nh\u00e2n vi\u00ean": current_nv,
+            "Ngu\u1ed3n": nguon,
+            "Sheet": sheet_name,
+            **{k: pd.to_numeric(row[col_mapping[k]], errors="coerce") for k in col_mapping}
         })
-    return data, list(col_map.keys())
+
+    return data
 
 # =====================
-# 📂 Đọc toàn bộ file Excel
+# \ud83d\udcc3 X\u1eed l\u00fd to\u00e0n b\u1ed9 file
 
 def extract_all_data(file):
     xls = pd.ExcelFile(file)
     all_rows = []
-    warnings = []
-    for sheet in xls.sheet_names:
-        df = pd.read_excel(xls, sheet_name=sheet, header=None)
-        records, found_cols = extract_data_from_sheet(df, sheet)
-        all_rows.extend(records)
-        if len(found_cols) < 2:
-            warnings.append((sheet, found_cols))
-    return pd.DataFrame(all_rows), warnings
+
+    for sheet_name in xls.sheet_names:
+        try:
+            df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+            if df.shape[0] < 10:
+                continue
+            extracted = extract_data_from_sheet(df, sheet_name)
+            all_rows.extend(extracted)
+        except Exception as e:
+            st.warning(f"\u274c L\u1ed7i sheet {sheet_name}: {e}")
+
+    return pd.DataFrame(all_rows)
 
 # =====================
-# 🔍 App
-st.title("📅 Đọc Tên Nhân Viên & Tính KPI Từ File Excel Báo Cáo")
-uploaded_files = st.file_uploader("Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
+# \ud83d\udcc5 Giao di\u1ec7n Streamlit
+
+st.title("\ud83d\udcc5 \u0110\u1ecdc T\u00ean Nh\u00e2n Vi\u00ean & T\u00ednh KPI T\u1eeb File Excel B\u00e1o C\u00e1o")
+
+uploaded_files = st.file_uploader("K\u00e9o & th\u1ea3 nhi\u1ec1u file Excel v\u00e0o \u0111\u00e2y", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
     all_data = []
-    all_warnings = []
     for file in uploaded_files:
-        st.write(f"📂 Đang xử lý: `{file.name}`")
-        df, warns = extract_all_data(file)
+        st.write(f"\ud83d\udcc2 \u0110ang x\u1eed l\u00fd: `{file.name}`")
+        df = extract_all_data(file)
         all_data.append(df)
-        all_warnings.extend(warns)
 
     df_all = pd.concat(all_data, ignore_index=True)
 
     if not df_all.empty:
-        df_all["Nhân viên chuẩn"] = df_all["Nhân viên"].apply(lambda x: str(x).strip().title())
+        df_all["Nh\u00e2n vi\u00ean chuẩn"] = df_all["Nh\u00e2n vi\u00ean"].apply(lambda x: re.sub(r"\\(.*?\\)", "", str(x)).strip().title())
 
-        st.subheader("✅ Danh sách Nhân viên đã chuẩn hóa")
-        st.dataframe(df_all[["Nhân viên", "Nhân viên chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
+        st.subheader("\u2705 Danh s\u00e1ch Nh\u00e2n vi\u00ean \u0111\u00e3 chu\u1ea9n h\u00f3a")
+        st.dataframe(df_all[["Nh\u00e2n vi\u00ean", "Nh\u00e2n vi\u00ean chuẩn", "Sheet"]].drop_duplicates(), use_container_width=True)
 
-        st.success(f"✅ Tổng số dòng dữ liệu: {len(df_all)} — 👩‍💼 Nhân viên duy nhất: {df_all['Nhân viên chuẩn'].nunique()}")
+        st.success(f"\u2705 T\u1ed5ng s\u1ed1 d\u00f2ng d\u1eef li\u1ec7u: {len(df_all)} \u2014 \ud83d\udc69\u200d\ud83d\udcbc Nh\u00e2n vi\u00ean duy nh\u1ea5t: {df_all['Nh\u00e2n vi\u00ean chuẩn'].nunique()}")
 
-        # Cảnh báo sheet bị thiếu KPI
-        for sheet, found in all_warnings:
-            st.warning(f"⚠️ Sheet {sheet} không đủ cột KPI — dò được {found}")
+        # ========== KPI Tu\u1ef3 Bi\u1ebfn ==========
+        st.header("\ud83d\udcca KPI Dashboard - T\u00ednh KPI Tu\u1ef3 Bi\u1ebfn")
+        st.subheader("\ud83d\udd22 D\u1eef li\u1ec7u t\u1ed5ng h\u1ee3p ban \u0111\u1ea7u")
+        st.dataframe(df_all.head(), use_container_width=True)
+
+        st.subheader("\u2699\ufe0f C\u1ea5u h\u00ecnh KPI Tu\u1ef3 Bi\u1ebfn")
+        kpi_col1 = st.selectbox("Ch\u1ecdn c\u1ed9t A", df_all.columns)
+        operator = st.selectbox("Ph\u00e9p to\u00e1n", ["/", "*", "+", "-"])
+        kpi_col2 = st.selectbox("Ch\u1ecdn c\u1ed9t B", df_all.columns)
+        kpi_name = st.text_input("T\u00ean ch\u1ec9 s\u1ed1 KPI m\u1edbi", "Hi\u1ec7u su\u1ea5t (%)")
+
+        if st.button("\u2705 T\u00ednh KPI"):
+            try:
+                if operator == "/":
+                    df_all[kpi_name] = df_all[kpi_col1] / df_all[kpi_col2] * 100
+                elif operator == "*":
+                    df_all[kpi_name] = df_all[kpi_col1] * df_all[kpi_col2]
+                elif operator == "+":
+                    df_all[kpi_name] = df_all[kpi_col1] + df_all[kpi_col2]
+                elif operator == "-":
+                    df_all[kpi_name] = df_all[kpi_col1] - df_all[kpi_col2]
+                st.success(f"\u2705 KPI m\u1edbi \u0111\u00e3 \u0111\u01b0\u1ee3c t\u00ednh: {kpi_name}")
+                st.dataframe(df_all[["Nh\u00e2n vi\u00ean chuẩn", kpi_name, "Sheet"]], use_container_width=True)
+            except Exception as e:
+                st.error(f"\u26a0\ufe0f L\u1ed7i khi t\u00ednh KPI: {e}")
     else:
-        st.error("❌ Không có dữ liệu hợp lệ. Kiểm tra file.")
+        st.warning("\u2757\ufe0f Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u n\u00e0o \u0111\u01b0\u1ee3c tr\u00edch xu\u1ea5t. Vui l\u00f2ng ki\u1ec3m tra file.")
+else:
+    st.info("\ud83d\udcc1 Vui l\u00f2ng upload file Excel \u0111\u1ec3 b\u1eaft \u0111\u1ea7u.")
