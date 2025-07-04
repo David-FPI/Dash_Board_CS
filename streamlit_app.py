@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
-
+os.system("pip install xlsxwriter")
 st.set_page_config(page_title="📋 Danh sách Nhân Viên", layout="wide")
 st.title("📋 Danh sách Nhân Viên từ File Excel")
 
