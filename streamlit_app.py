@@ -228,7 +228,33 @@ if uploaded_files:
             file_name="tong_tuong_tac_10_cau.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    # ✅ Bảng chi tiết từng giá trị Tương tác đã lấy
+    detail_rows = []
+    for item in sheet_data_list:
+        df = item["data"]
+        sheet = item["sheet_name"]
+        if "Tương tác ≥10 câu" not in df.columns:
+            continue
+    
+        for i, row in df.iterrows():
+            name = row.get("Tên nhân viên", "")
+            value = row.get("Tương tác ≥10 câu", "")
+            detail_rows.append({
+                "Sheet": sheet,
+                "Dòng": i + 3,  # +3 vì mình skip 2 dòng đầu
+                "Tên nhân viên": name,
+                "Giá trị": value
+            })
+    
+    df_detail = pd.DataFrame(detail_rows)
+    
+    if not df_detail.empty:
+        st.subheader("🧐 Kiểm tra chi tiết giá trị từng dòng 'Tương tác ≥10 câu'")
+        st.dataframe(df_detail, use_container_width=True)
 
+
+
+    
     if not df_summary.empty:
         st.success(f"✅ Tổng cộng có {df_summary.shape[0]} nhân viên duy nhất sau chuẩn hóa.")
         st.dataframe(df_summary, use_container_width=True)
