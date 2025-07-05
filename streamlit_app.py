@@ -99,9 +99,7 @@ def clean_text(text):
 
 # ✅ Keyword liên quan đến "Tương tác ≥10 câu"
 KEYWORDS_TUONG_TAC = [
-    "≥10", "tuong tac", "10 cau", "≥10 cau", "≥10 câu",
-    "trao doi", "interaction", "tuong tac (≥10 cau)",
-    "tuong tac >=10"
+    "≥10",  "(≥10 cau)"
 ]
 
 def find_column_index_tuong_tac(file, sheet_name):
