@@ -171,6 +171,8 @@ if uploaded_files:
     for uploaded_file in uploaded_files:
         file_name = uploaded_file.name
         xls = pd.ExcelFile(uploaded_file)
+        interaction_column_log = []  # Danh sách ghi log sheet và cột tương tác
+
         for sheet in xls.sheet_names:
             try:
                 raw_df = pd.read_excel(xls, sheet_name=sheet, skiprows=2)
@@ -181,6 +183,11 @@ if uploaded_files:
                 if col_index is not None:
                     col_name = raw_df.columns[col_index]
                     df["Tương tác ≥10 câu"] = raw_df[col_name]
+                    interaction_column_log.append({
+                        "File": file_name,
+                        "Sheet": sheet,
+                        "Tên cột được chọn": col_name
+                    })
 
                     st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_name}`")
                 else:
@@ -200,7 +207,18 @@ if uploaded_files:
     df_summary = build_staff_sheet_summary(sheet_data_list)
     # ✅ Bảng tổng hợp tương tác ≥10 câu
     df_interaction = summarize_interaction_by_staff(sheet_data_list)
-    st.dataframe(df_interaction)
+    if interaction_column_log:
+        st.subheader("🧾 Danh sách Sheet và Cột đã dùng để lấy 'Tương tác ≥10 câu'")
+        df_log = pd.DataFrame(interaction_column_log)
+        st.dataframe(df_log, use_container_width=True)
+    
+        st.download_button(
+            label="📥 Tải danh sách Sheet & Cột tương tác",
+            data=to_excel_download(df_log),
+            file_name="log_cot_tuong_tac.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
 
     if not df_interaction.empty:
         st.subheader("📈 Tổng số Tương tác ≥10 câu theo Nhân viên")
