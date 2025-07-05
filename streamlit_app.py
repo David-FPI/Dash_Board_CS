@@ -180,7 +180,8 @@ if uploaded_files:
                 col_index = find_column_index_tuong_tac(uploaded_file, sheet)
                 if col_index is not None:
                     col_name = raw_df.columns[col_index]
-                    raw_df["Tương tác ≥10 câu"] = raw_df[col_name]
+                    df["Tương tác ≥10 câu"] = raw_df[col_name]
+
                     st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_name}`")
                 else:
                     st.warning(f"⚠️ Sheet `{sheet}` không tìm thấy cột Tương tác ≥10 câu.")
