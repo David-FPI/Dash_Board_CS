@@ -137,11 +137,6 @@ if uploaded_files:
             try:
                 raw_df = pd.read_excel(xls, sheet_name=sheet, skiprows=2)
                 df = extract_data_with_staff(raw_df, staff_col_index=1)
-                st.caption(f"📄 File: `{file_name}` — Sheet: `{sheet}` — {df.shape[0]} dòng")
-                sheet_data_list.append({
-                    'data': df,
-                    'sheet_name': sheet
-
                                 # ✅ Tìm cột tương tác ≥10 câu
                 col_tuong_tac = find_column_by_keywords_row3(raw_df)
                 if col_tuong_tac:
@@ -149,6 +144,13 @@ if uploaded_files:
                     st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_tuong_tac}`")
                 else:
                     st.warning(f"⚠️ Sheet `{sheet}` không tìm thấy cột Tương tác ≥10 câu.")
+
+                
+                st.caption(f"📄 File: `{file_name}` — Sheet: `{sheet}` — {df.shape[0]} dòng")
+                sheet_data_list.append({
+                    'data': df,
+                    'sheet_name': sheet
+
 
                 })
             except Exception as e:
