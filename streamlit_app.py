@@ -104,21 +104,23 @@ KEYWORDS_TUONG_TAC = [
     "tuong tac >=10"
 ]
 
-# ✅ Hàm tìm cột tương tác trong dòng tiêu đề số 3 (index = 2)
-def find_column_by_keywords_row3(df):
+def find_column_index_tuong_tac(file, sheet_name):
     """
-    Trả về tên cột nếu cột đó chứa tiêu đề liên quan đến 'Tương tác ≥10 câu'
+    Đọc dòng thứ 3 (index=2) của sheet, dò các keyword tương tác
+    Trả về: chỉ số cột nếu tìm thấy, None nếu không
     """
-    if df.shape[0] < 3:
+    try:
+        df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None, nrows=3)
+        header_row3 = df_raw.iloc[2]  # dòng thứ 3 (index=2)
+        for idx, val in enumerate(header_row3):
+            col_clean = clean_text(str(val))
+            for keyword in KEYWORDS_TUONG_TAC:
+                if clean_text(keyword) in col_clean:
+                    return idx
+    except:
         return None
-
-    row_headers = df.iloc[2]  # tiêu đề dòng 3 (index 2)
-    for idx, col_val in enumerate(row_headers):
-        col_clean = clean_text(str(col_val))
-        for keyword in KEYWORDS_TUONG_TAC:
-            if clean_text(keyword) in col_clean:
-                return df.columns[idx]
     return None
+
 
 
 
@@ -138,10 +140,12 @@ if uploaded_files:
                 raw_df = pd.read_excel(xls, sheet_name=sheet, skiprows=2)
                 df = extract_data_with_staff(raw_df, staff_col_index=1)
                                 # ✅ Tìm cột tương tác ≥10 câu
-                col_tuong_tac = find_column_by_keywords_row3(raw_df)
-                if col_tuong_tac:
-                    df["Tương tác ≥10 câu"] = raw_df[col_tuong_tac]
-                    st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_tuong_tac}`")
+                # ✅ Tìm cột tương tác bằng dòng 3 thật sự (không skip)
+                col_index = find_column_index_tuong_tac(uploaded_file, sheet)
+                if col_index is not None:
+                    col_name = raw_df.columns[col_index]
+                    raw_df["Tương tác ≥10 câu"] = raw_df[col_name]
+                    st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_name}`")
                 else:
                     st.warning(f"⚠️ Sheet `{sheet}` không tìm thấy cột Tương tác ≥10 câu.")
 
