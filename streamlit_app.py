@@ -121,6 +121,42 @@ def find_column_index_tuong_tac(file, sheet_name):
         return None
     return None
 
+# ✅ Thống kê tổng tương tác ≥10 câu theo từng nhân viên
+def summarize_interaction_by_staff(sheet_data_list):
+    rows = []
+    for item in sheet_data_list:
+        df = item['data']
+        if "Tương tác ≥10 câu" not in df.columns:
+            continue
+
+        for _, row in df.iterrows():
+            name = row.get("Tên nhân viên", "")
+            if not name or normalize_text(name) in ["", "组员", "组员名字", "nan"]:
+                continue
+
+            value = row.get("Tương tác ≥10 câu", 0)
+            try:
+                count = int(value)
+            except:
+                try:
+                    count = float(str(value).replace(",", "."))
+                except:
+                    count = 0
+
+            rows.append({
+                "Tên nhân viên": name,
+                "Số tương tác ≥10 câu": count
+            })
+
+    df_all = pd.DataFrame(rows)
+    if df_all.empty:
+        return pd.DataFrame()
+
+    df_grouped = df_all.groupby("Tên nhân viên").sum().reset_index()
+    df_grouped = df_grouped.sort_values(by="Số tương tác ≥10 câu", ascending=False).reset_index(drop=True)
+    df_grouped.index += 1
+    df_grouped.insert(0, "STT", df_grouped.index)
+    return df_grouped
 
 
 
@@ -161,6 +197,19 @@ if uploaded_files:
                 st.warning(f"⚠️ Sheet `{sheet}` lỗi: {e}")
 
     df_summary = build_staff_sheet_summary(sheet_data_list)
+    # ✅ Bảng tổng hợp tương tác ≥10 câu
+    df_interaction = summarize_interaction_by_staff(sheet_data_list)
+
+    if not df_interaction.empty:
+        st.subheader("📈 Tổng số Tương tác ≥10 câu theo Nhân viên")
+        st.dataframe(df_interaction, use_container_width=True)
+
+        st.download_button(
+            label="📥 Tải bảng Tương tác ≥10 câu",
+            data=to_excel_download(df_interaction),
+            file_name="tong_tuong_tac_10_cau.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
     if not df_summary.empty:
         st.success(f"✅ Tổng cộng có {df_summary.shape[0]} nhân viên duy nhất sau chuẩn hóa.")
