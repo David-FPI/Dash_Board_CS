@@ -200,6 +200,7 @@ if uploaded_files:
     df_summary = build_staff_sheet_summary(sheet_data_list)
     # ✅ Bảng tổng hợp tương tác ≥10 câu
     df_interaction = summarize_interaction_by_staff(sheet_data_list)
+    st.dataframe(df_interaction)
 
     if not df_interaction.empty:
         st.subheader("📈 Tổng số Tương tác ≥10 câu theo Nhân viên")
