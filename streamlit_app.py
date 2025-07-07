@@ -154,7 +154,8 @@ if uploaded_files:
                 lambda row: (row["kpi_groupzalo"] / row["kpi_ketban"] * 100) if row["kpi_ketban"] != 0 else None,
                 axis=1
             )
-            df_kpi_total["Hiệu suất (%)"] = df_kpi_total["Hiệu suất (%)"].round(2)
+            df_kpi_total["Hiệu suất (%)"] = pd.to_numeric(df_kpi_total["Hiệu suất (%)"], errors="coerce").round(2)
+
 
             st.subheader("📊 KPI tổng hợp theo nhân viên")
             st.dataframe(df_kpi_total, use_container_width=True)
