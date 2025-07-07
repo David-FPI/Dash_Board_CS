@@ -1,269 +1,165 @@
-import unicodedata
-import re
-import pandas as pd
 import streamlit as st
-from collections import defaultdict
-from io import BytesIO
+import pandas as pd
+import re
 
-# ✅ Chuẩn hóa tên
-def normalize_name(name):
+st.set_page_config(page_title="Tổng hợp báo cáo nhân viên", layout="wide")
+st.title("📊 Tổng hợp báo cáo nhân viên từ nhiều file Excel")
+
+# ======================== Hàm chuẩn hóa & xử lý ========================
+def normalize_staff_name(name):
     if not isinstance(name, str):
         return ""
     name = re.sub(r"\(.*?\)", "", name)
-    name = re.sub(r"\s+", " ", name).strip().title()
+    name = re.sub(r"\s+", " ", name).strip()
     return name
 
-# ✅ Chuẩn hóa text để so sánh
-def normalize_text(text):
-    if not isinstance(text, str):
-        return ""
-    text = text.strip().lower()
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
-    text = re.sub(r'\s+', ' ', text)
-    return text
+def extract_header(df):
+    if len(df) < 3:
+        raise ValueError("File thiếu dòng tiêu đề (ít hơn 3 dòng).")
+    row1 = df.iloc[1].fillna("")
+    row2 = df.iloc[2].fillna("")
+    header = row1.astype(str) + " " + row2.astype(str)
+    header = header.str.replace(r"\s+", " ", regex=True).str.strip()
+    return header
 
-# ✅ Tách dữ liệu nhân viên từ cột B (index = 1), kết thúc khi có 2 dòng trống liên tiếp
-def extract_data_with_staff(df, staff_col_index=1):
-    df = df.copy()
-    df = df.dropna(how='all')
-    df.columns = [f"col_{i}" for i in range(len(df.columns))]
-    staff_col = f"col_{staff_col_index}"
+def extract_data_block(df_raw):
+    header = extract_header(df_raw)
+    header = pd.Series(header)
+    header = header.where(~header.duplicated(), header + "_" + header.groupby(header).cumcount().astype(str))
+    df_data = df_raw.iloc[3:].copy()
 
-    current_name = ""
-    empty_count = 0
-    stop_index = None
+    cutoff_idx = df_data[df_data.iloc[:, 0].astype(str).str.contains("统计|Tổng", case=False, na=False)].index
+    if not cutoff_idx.empty:
+        df_data = df_data.loc[:cutoff_idx[0] - 1]
 
-    for i, val in enumerate(df[staff_col]):
-        val = str(val).strip()
-        if val:
-            current_name = val
-            df.at[i, staff_col] = current_name
-            empty_count = 0
-        else:
-            df.at[i, staff_col] = current_name
-            empty_count += 1
+    df_data.columns = header
+    df_data.reset_index(drop=True, inplace=True)
 
-        if empty_count >= 2:
-            stop_index = i
-            break
+    staff_col = next((c for c in df_data.columns if "nhân viên" in c.lower()), None)
+    if not staff_col:
+        raise ValueError("Không tìm thấy cột Nhân viên.")
 
-    if stop_index:
-        df = df.iloc[:stop_index]
+    last_name = None
+    for i in range(len(df_data)):
+        name = df_data.at[i, staff_col]
+        if pd.notna(name) and str(name).strip() != "":
+            last_name = normalize_staff_name(name)
+        elif last_name:
+            df_data.at[i, staff_col] = last_name
 
-    df[staff_col] = df[staff_col].apply(normalize_name)
-    df.rename(columns={staff_col: "Tên nhân viên"}, inplace=True)
-    return df
+    return df_data
 
-# ✅ Tạo bảng tổng hợp nhân viên + sheet xuất hiện
-def build_staff_sheet_summary(sheet_data_list):
-    staff_sheets = defaultdict(set)
+# ======================== Xử lý nhiều sheet ========================
+def process_all_sheets(file):
+    xls = pd.ExcelFile(file)
+    all_data = []
+    log = []
+    for sheet in xls.sheet_names:
+        try:
+            df_raw = xls.parse(sheet, header=None)
+            cleaned = extract_data_block(df_raw)
+            cleaned["__Sheet__"] = sheet
+            all_data.append(cleaned)
+            log.append({"Sheet": sheet, "Status": "✅ Đã xử lý", "Rows": len(cleaned)})
+        except Exception as e:
+            log.append({"Sheet": sheet, "Status": f"❌ Bỏ qua - {str(e)}", "Rows": 0})
+    log_df = pd.DataFrame(log)
+    return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame(), log_df
 
-    for item in sheet_data_list:
-        df = item['data']
-        sheet_name = item['sheet_name']
-        for name in df["Tên nhân viên"]:
-            if not name or normalize_text(name) in ["", "组员", "组员名字", "nan"]:
-                continue
-            staff_sheets[name].add(sheet_name)
+# ======================== Chuẩn hóa tên cột ========================
+def normalize_column_name(col):
+    col = str(col)
+    col = re.sub(r"\s+", " ", col)
+    col = col.strip().lower()
+    return col
 
-    rows = []
-    for idx, (name, sheets) in enumerate(sorted(staff_sheets.items()), start=1):
-        sheet_list = sorted(list(sheets))
-        rows.append({
-            "STT": idx,
-            "Tên nhân viên": name,
-            "Xuất hiện ở các sheet": ", ".join(sheet_list),
-            "Số lần xuất hiện": len(sheets)
-        })
-
-    return pd.DataFrame(rows)
-
-# ✅ Chuyển DataFrame thành file tải về
-def to_excel_download(df):
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='DanhSachNhanVien')
-    return buffer.getvalue()
-
-# ✅ Hàm chuẩn hóa tiêu đề
-def clean_text(text):
-    if not isinstance(text, str):
-        return ""
-    text = text.strip().lower()
-    text = unicodedata.normalize('NFD', text)
-    text = ''.join(ch for ch in text if unicodedata.category(ch) != 'Mn')
-    text = re.sub(r'[\n\r\t]+', ' ', text)  # xóa xuống dòng/tab
-    text = re.sub(r'\s+', ' ', text)
-    return text
-
-# ✅ Keyword liên quan đến "Tương tác ≥10 câu"
-KEYWORDS_TUONG_TAC = [
-    "≥10",  "(≥10 cau)"
-]
-
-def find_column_index_tuong_tac(file, sheet_name):
-    """
-    Đọc dòng thứ 3 (index=2) của sheet, dò các keyword tương tác
-    Trả về: chỉ số cột nếu tìm thấy, None nếu không
-    """
-    try:
-        df_raw = pd.read_excel(file, sheet_name=sheet_name, header=None, nrows=3)
-        header_row3 = df_raw.iloc[2]  # dòng thứ 3 (index=2)
-        for idx, val in enumerate(header_row3):
-            col_clean = clean_text(str(val))
-            for keyword in KEYWORDS_TUONG_TAC:
-                if clean_text(keyword) in col_clean:
-                    return idx
-    except:
-        return None
-    return None
-
-# ✅ Thống kê tổng tương tác ≥10 câu theo từng nhân viên
-def summarize_interaction_by_staff(sheet_data_list):
-    rows = []
-    for item in sheet_data_list:
-        df = item['data']
-        if "Tương tác ≥10 câu" not in df.columns:
-            continue
-
-        for _, row in df.iterrows():
-            name = row.get("Tên nhân viên", "")
-            if not name or normalize_text(name) in ["", "组员", "组员名字", "nan"]:
-                continue
-
-            value = row.get("Tương tác ≥10 câu", 0)
-            try:
-                count = int(value)
-            except:
-                try:
-                    count = float(str(value).replace(",", "."))
-                except:
-                    count = 0
-
-            rows.append({
-                "Tên nhân viên": name,
-                "Số tương tác ≥10 câu": count
-            })
-
-    df_all = pd.DataFrame(rows)
-    if df_all.empty:
-        return pd.DataFrame()
-
-    df_grouped = df_all.groupby("Tên nhân viên").sum().reset_index()
-    df_grouped = df_grouped.sort_values(by="Số tương tác ≥10 câu", ascending=False).reset_index(drop=True)
-    df_grouped.index += 1
-    df_grouped.insert(0, "STT", df_grouped.index)
-    return df_grouped
-
-
-
-# ✅ Streamlit UI
-st.set_page_config(page_title="📊 Danh sách Nhân Viên", layout="wide")
-st.title("📋 Danh sách Nhân Viên từ File Excel")
-
-uploaded_files = st.file_uploader("📁 Kéo & thả nhiều file Excel vào đây", type=["xlsx"], accept_multiple_files=True)
+# ======================== Giao diện ========================
+uploaded_files = st.file_uploader("📁 Tải lên 1 hoặc nhiều file báo cáo Excel", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
-    sheet_data_list = []
-    for uploaded_file in uploaded_files:
-        file_name = uploaded_file.name
-        xls = pd.ExcelFile(uploaded_file)
-        interaction_column_log = []  # Danh sách ghi log sheet và cột tương tác
+    full_data = []
+    for file in uploaded_files:
+        try:
+            st.success(f"✔️ Đang xử lý: {file.name}")
+            df_all, sheet_log = process_all_sheets(file)
+            df_all["__File__"] = file.name
+            full_data.append(df_all)
+        except Exception as e:
+            st.error(f"❌ Lỗi khi xử lý file {file.name}: {e}")
 
-        for sheet in xls.sheet_names:
-            try:
-                raw_df = pd.read_excel(xls, sheet_name=sheet, skiprows=2)
-                df = extract_data_with_staff(raw_df, staff_col_index=1)
-                                # ✅ Tìm cột tương tác ≥10 câu
-                # ✅ Tìm cột tương tác bằng dòng 3 thật sự (không skip)
-                col_index = find_column_index_tuong_tac(uploaded_file, sheet)
-                if col_index is not None:
-                    col_name = raw_df.columns[col_index]
-                    df["Tương tác ≥10 câu"] = raw_df[col_name]
-                    interaction_column_log.append({
-                        "File": file_name,
-                        "Sheet": sheet,
-                        "Tên cột được chọn": col_name
-                    })
+    if full_data:
+        df_final = pd.concat(full_data, ignore_index=True)
+        # 🔍 In thử các sheet và số cột nhận được từ mỗi sheet
+        st.markdown("### 📌 Check: Cột nhận được từ mỗi sheet")
 
-                    st.info(f"📌 Sheet `{sheet}` có cột tương tác: `{col_name}`")
-                else:
-                    st.warning(f"⚠️ Sheet `{sheet}` không tìm thấy cột Tương tác ≥10 câu.")
+        if "__Sheet__" in df_final.columns:
+            sheet_col_map = df_final.groupby("__Sheet__").agg(lambda x: list(x.index)).reset_index()
+            sheet_col_map["Số dòng"] = sheet_col_map["__Sheet__"].apply(lambda sheet: len(df_final[df_final["__Sheet__"] == sheet]))
+            sheet_col_map["Số cột"] = sheet_col_map["__Sheet__"].apply(lambda sheet: df_final[df_final["__Sheet__"] == sheet].shape[1])
+            st.dataframe(sheet_col_map[["__Sheet__", "Số dòng", "Số cột"]], use_container_width=True)
 
-                
-                st.caption(f"📄 File: `{file_name}` — Sheet: `{sheet}` — {df.shape[0]} dòng")
-                sheet_data_list.append({
-                    'data': df,
-                    'sheet_name': sheet
-
-
-                })
-            except Exception as e:
-                st.warning(f"⚠️ Sheet `{sheet}` lỗi: {e}")
-
-    df_summary = build_staff_sheet_summary(sheet_data_list)
-    # ✅ Bảng tổng hợp tương tác ≥10 câu
-    df_interaction = summarize_interaction_by_staff(sheet_data_list)
-    if interaction_column_log:
-        st.subheader("🧾 Danh sách Sheet và Cột đã dùng để lấy 'Tương tác ≥10 câu'")
-        df_log = pd.DataFrame(interaction_column_log)
-        st.dataframe(df_log, use_container_width=True)
-    
-        st.download_button(
-            label="📥 Tải danh sách Sheet & Cột tương tác",
-            data=to_excel_download(df_log),
-            file_name="log_cot_tuong_tac.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-
-    if not df_interaction.empty:
-        st.subheader("📈 Tổng số Tương tác ≥10 câu theo Nhân viên")
-        st.dataframe(df_interaction, use_container_width=True)
-
-        st.download_button(
-            label="📥 Tải bảng Tương tác ≥10 câu",
-            data=to_excel_download(df_interaction),
-            file_name="tong_tuong_tac_10_cau.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    # ✅ Bảng chi tiết từng giá trị Tương tác đã lấy
-    detail_rows = []
-    for item in sheet_data_list:
-        df = item["data"]
-        sheet = item["sheet_name"]
-        if "Tương tác ≥10 câu" not in df.columns:
-            continue
-    
-        for i, row in df.iterrows():
-            name = row.get("Tên nhân viên", "")
-            value = row.get("Tương tác ≥10 câu", "")
-            detail_rows.append({
-                "Sheet": sheet,
-                "Dòng": i + 3,  # +3 vì mình skip 2 dòng đầu
-                "Tên nhân viên": name,
-                "Giá trị": value
-            })
-    
-    df_detail = pd.DataFrame(detail_rows)
-    
-    if not df_detail.empty:
-        st.subheader("🧐 Kiểm tra chi tiết giá trị từng dòng 'Tương tác ≥10 câu'")
-        st.dataframe(df_detail, use_container_width=True)
+            # Optional: hiển thị 3 dòng đầu của mỗi sheet
+            for sheet in df_final["__Sheet__"].unique():
+                st.markdown(f"#### 🧾 Sheet: `{sheet}` - 3 dòng đầu")
+                st.dataframe(df_final[df_final["__Sheet__"] == sheet].head(3), use_container_width=True)
+        else:
+            st.warning("⚠️ Không tìm thấy cột '__Sheet__'. Có thể hàm process_all_sheets() đang bị lỗi.")
 
 
 
-    
-    if not df_summary.empty:
-        st.success(f"✅ Tổng cộng có {df_summary.shape[0]} nhân viên duy nhất sau chuẩn hóa.")
-        st.dataframe(df_summary, use_container_width=True)
 
-        st.download_button(
-            label="📥 Tải danh sách nhân viên",
-            data=to_excel_download(df_summary),
-            file_name="tong_hop_nhan_vien.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    else:
-        st.error("❌ Không tìm được nhân viên hợp lệ.")
+        st.subheader("✅ Dữ liệu đã tổng hợp")
+        st.dataframe(df_final.head(50), use_container_width=True)
+
+        # —————— START: TÍNH KPI ——————
+        normalized_cols = {c: normalize_column_name(c) for c in df_final.columns}
+
+        kpi_ketban_keywords = ["tổng số kết bạn trong ngày", "当天加zalo总数"]
+        kpi_tuongtac_keywords = ["tương tác ≥10 câu", "≥10"]
+        kpi_groupzalo_keywords = ["tham gia group zalo", "lượng tham gia group zalo"]
+
+        def find_cols_by_keywords(keywords):
+            return [orig for orig, norm in normalized_cols.items() if any(kw in norm for kw in keywords)]
+
+        def find_col_by_keywords(keywords):
+            return next((orig for orig, norm in normalized_cols.items()
+                        if any(kw in norm for kw in keywords)), None)
+
+        cols_ketban = find_cols_by_keywords(kpi_ketban_keywords)
+        cols_tuongtac = find_cols_by_keywords(kpi_tuongtac_keywords)
+        cols_groupzalo = find_cols_by_keywords(kpi_groupzalo_keywords)
+
+        if not (cols_ketban and cols_tuongtac and cols_groupzalo):
+            st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
+        else:
+            df_final["kpi_ketban"] = df_final[cols_ketban].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_tuongtac"] = df_final[cols_tuongtac].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+
+            # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
+            staff_keywords = ["nhân viên", "人员", "成员"]
+            source_keywords = ["nguồn", "渠道"]
+
+            staff_col = find_col_by_keywords(staff_keywords)
+            source_col = find_col_by_keywords(source_keywords)
+
+            kpi_cols = ["kpi_ketban", "kpi_tuongtac", "kpi_groupzalo"]
+
+            df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
+            st.subheader("📈 KPI theo nhân viên và nguồn")
+            st.dataframe(df_kpi, use_container_width=True)
+
+            df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
+            df_kpi_total["Hiệu suất (%)"] = df_kpi_total.apply(
+                lambda row: (row["kpi_groupzalo"] / row["kpi_ketban"] * 100) if row["kpi_ketban"] != 0 else None,
+                axis=1
+            )
+            df_kpi_total["Hiệu suất (%)"] = df_kpi_total["Hiệu suất (%)"].round(2)
+
+            st.subheader("📊 KPI tổng hợp theo nhân viên")
+            st.dataframe(df_kpi_total, use_container_width=True)
+
+        # —————— END: TÍNH KPI ——————
+
+        csv = df_final.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 Tải dữ liệu tổng hợp CSV", csv, "tong_hop_bao_cao.csv", "text/csv")
