@@ -119,7 +119,7 @@ if uploaded_files:
         kpi_groupzalo_keywords = ["tham gia group zalo", "lượng tham gia group zalo"]
         # --- CÁC KPI MỞ RỘNG MỚI ---
         kpi_1_1_keywords = ["trao đổi 1-1", "私信zalo数", "tổng trao đổi trong ngày"]
-        kpi_duoi10_keywords = ["đối thoại (<10 câu)", "对话 (<10 句)", "đối thoại", "trao đổi <10 câu", "<10"]
+        kpi_duoi10_keywords = ["<10"]
         kpi_khong_phan_hoi_keywords = ["không phản hồi", "无回复", "无"]
 
 
