@@ -117,6 +117,10 @@ if uploaded_files:
         kpi_ketban_keywords = ["tổng số kết bạn trong ngày", "当天加zalo总数"]
         kpi_tuongtac_keywords = ["tương tác ≥10 câu", "≥10"]
         kpi_groupzalo_keywords = ["tham gia group zalo", "lượng tham gia group zalo"]
+        # --- CÁC KPI MỞ RỘNG MỚI ---
+        kpi_1_1_keywords = ["trao đổi 1-1", "私信zalo数 tổng trao đổi trong ngày"]
+        kpi_duoi10_keywords = ["đối thoại (<10 câu)", "对话 (<10 句) đối thoại (trao đổi <10 câu)"]
+        kpi_khong_phan_hoi_keywords = ["không phản hồi", "无回复 không phản hồi"]
 
         def find_cols_by_keywords(keywords):
             return [orig for orig, norm in normalized_cols.items() if any(kw in norm for kw in keywords)]
@@ -128,6 +132,9 @@ if uploaded_files:
         cols_ketban = find_cols_by_keywords(kpi_ketban_keywords)
         cols_tuongtac = find_cols_by_keywords(kpi_tuongtac_keywords)
         cols_groupzalo = find_cols_by_keywords(kpi_groupzalo_keywords)
+        cols_1_1 = find_cols_by_keywords(kpi_1_1_keywords)
+        cols_duoi10 = find_cols_by_keywords(kpi_duoi10_keywords)
+        cols_khong_phan_hoi = find_cols_by_keywords(kpi_khong_phan_hoi_keywords)
 
         if not (cols_ketban and cols_tuongtac and cols_groupzalo):
             st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
@@ -135,6 +142,9 @@ if uploaded_files:
             df_final["kpi_ketban"] = df_final[cols_ketban].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_tuongtac"] = df_final[cols_tuongtac].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_traodoi_1_1"] = df_final[cols_1_1].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_doi_thoai_duoi10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
 
             # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
             staff_keywords = ["nhân viên", "人员", "成员"]
@@ -143,7 +153,11 @@ if uploaded_files:
             staff_col = find_col_by_keywords(staff_keywords)
             source_col = find_col_by_keywords(source_keywords)
 
-            kpi_cols = ["kpi_ketban", "kpi_tuongtac", "kpi_groupzalo"]
+            kpi_cols = [
+                "kpi_ketban", "kpi_tuongtac", "kpi_groupzalo",
+                "kpi_traodoi_1_1", "kpi_doi_thoai_duoi10", "kpi_khong_phan_hoi"
+            ]
+
 
             df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
             st.subheader("📈 KPI theo nhân viên và nguồn")
