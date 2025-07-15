@@ -164,14 +164,44 @@ if uploaded_files:
             st.subheader("📈 KPI theo nhân viên và nguồn")
             st.dataframe(df_kpi, use_container_width=True)
 
+
+
             df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
-            df_kpi_total["Hiệu suất (%)"] = df_kpi_total.apply(
-                lambda row: (row["kpi_groupzalo"] / row["kpi_ketban"] * 100) if row["kpi_ketban"] != 0 else None,
-                axis=1
-            )
-            df_kpi_total["Hiệu suất (%)"] = pd.to_numeric(df_kpi_total["Hiệu suất (%)"], errors="coerce").round(2)
+            # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
+            with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
+                col_names = df_kpi_total.columns.tolist()
+                selected_cols = st.multiselect("📌 Chọn cột muốn dùng trong công thức:", col_names, default=[])
+
+                common_formulas = {
+                    "Hiệu suất group / kết bạn (%)": "kpi_groupzalo / kpi_ketban * 100",
+                    "Tỉ lệ không phản hồi": "kpi_khong_phan_hoi / kpi_traodoi_1_1 * 100",
+                    "Tương tác >10 / kết bạn (%)": "kpi_tuongtac_tren_10 / kpi_ketban * 100"
+                }
+                selected_common = st.selectbox("📂 Chọn công thức mẫu:", [""] + list(common_formulas.keys()))
+                if selected_common:
+                    custom_formula = common_formulas[selected_common]
+                    st.info(f"📌 Công thức đã chọn: `{custom_formula}`")
+                else:
+                    custom_formula = st.text_input("🧠 Nhập công thức KPI tuỳ chỉnh")
+
+                custom_col_name = st.text_input("📝 Tên cột mới:", value="KPI tuỳ biến")
+
+                if st.button("🚀 Tính KPI tuỳ biến"):
+                    if selected_cols and custom_formula and custom_col_name:
+                        try:
+                            calc_df = df_kpi_total[selected_cols].copy()
+                            result = eval(custom_formula, {}, calc_df.to_dict("series"))
+                            df_kpi_total[custom_col_name] = pd.to_numeric(result, errors="coerce").round(2)
+                            st.success(f"✅ Đã thêm cột: {custom_col_name}")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi công thức: {e}")
+                    else:
+                        st.warning("⚠️ Cần chọn đủ cột, công thức và tên cột mới.")
+
+            
 
 
+            # df_kpi_total["Hiệu suất (%)"] = pd.to_numeric(df_kpi_total["Hiệu suất (%)"], errors="coerce").round(2)
 
 
             st.subheader("📊 KPI tổng hợp theo nhân viên")
