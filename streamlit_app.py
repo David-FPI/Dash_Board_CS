@@ -156,7 +156,7 @@ if uploaded_files:
 
             kpi_cols = [
                 "kpi_ketban", "kpi_tuongtac_tren_10", "kpi_groupzalo",
-                "kpi_traodoi_1_1", "kpi_tuongtac_duoi_10", "kpi_khong_phan_hoi"
+                "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_khong_phan_hoi"
             ]
 
 
