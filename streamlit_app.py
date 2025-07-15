@@ -171,23 +171,7 @@ if uploaded_files:
             )
             df_kpi_total["Hiệu suất (%)"] = pd.to_numeric(df_kpi_total["Hiệu suất (%)"], errors="coerce").round(2)
 
-                        # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
-            with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
-                col_names = df_kpi_total.columns.tolist()
-                selected_cols = st.multiselect("📌 Chọn cột muốn dùng trong công thức:", col_names, default=[])
-                custom_formula = st.text_input("🧠 Nhập công thức (ví dụ: kpi_groupzalo / kpi_tuongtac_tren_10 * 100)")
-            
-                custom_col_name = st.text_input("📝 Tên cột mới:", value="KPI tuỳ biến")
-            
-                if st.button("🚀 Tính KPI tuỳ biến"):
-                    try:
-                        # Gán biến vào môi trường eval()
-                        calc_df = df_kpi_total[selected_cols].copy()
-                        result = eval(custom_formula, {}, calc_df.to_dict("series"))
-                        df_kpi_total[custom_col_name] = pd.to_numeric(result, errors="coerce").round(2)
-                        st.success(f"✅ Đã thêm cột mới: {custom_col_name}")
-                    except Exception as e:
-                        st.error(f"❌ Công thức sai: {e}")
+
 
 
             st.subheader("📊 KPI tổng hợp theo nhân viên")
