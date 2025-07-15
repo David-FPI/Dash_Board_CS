@@ -118,9 +118,10 @@ if uploaded_files:
         kpi_tuongtac_keywords = ["tương tác ≥10 câu", "≥10"]
         kpi_groupzalo_keywords = ["tham gia group zalo", "lượng tham gia group zalo"]
         # --- CÁC KPI MỞ RỘNG MỚI ---
-        kpi_1_1_keywords = ["trao đổi 1-1", "私信zalo数 tổng trao đổi trong ngày"]
-        kpi_duoi10_keywords = ["đối thoại (<10 câu)", "对话 (<10 句) đối thoại (trao đổi <10 câu)"]
-        kpi_khong_phan_hoi_keywords = ["không phản hồi", "无回复 không phản hồi"]
+        kpi_1_1_keywords = ["trao đổi 1-1", "私信zalo数", "tổng trao đổi trong ngày"]
+        kpi_duoi10_keywords = ["đối thoại (<10 câu)", "对话 (<10 句)", "đối thoại", "trao đổi <10 câu", "<10"]
+        kpi_khong_phan_hoi_keywords = ["không phản hồi", "无回复", "无"]
+
 
         def find_cols_by_keywords(keywords):
             return [orig for orig, norm in normalized_cols.items() if any(kw in norm for kw in keywords)]
