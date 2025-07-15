@@ -141,10 +141,10 @@ if uploaded_files:
             st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
         else:
             df_final["kpi_ketban"] = df_final[cols_ketban].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
-            df_final["kpi_tuongtac"] = df_final[cols_tuongtac].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_tuongtac_>10"] = df_final[cols_tuongtac].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_traodoi_1_1"] = df_final[cols_1_1].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
-            df_final["kpi_doi_thoai_duoi10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_doi_thoai_<10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
 
             # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
@@ -155,8 +155,8 @@ if uploaded_files:
             source_col = find_col_by_keywords(source_keywords)
 
             kpi_cols = [
-                "kpi_ketban", "kpi_tuongtac", "kpi_groupzalo",
-                "kpi_traodoi_1_1", "kpi_doi_thoai_duoi10", "kpi_khong_phan_hoi"
+                "kpi_ketban", "kpi_tuongtac_>10", "kpi_groupzalo",
+                "kpi_traodoi_1_1", "kpi_doi_thoai_<10", "kpi_khong_phan_hoi"
             ]
 
 
