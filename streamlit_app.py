@@ -155,9 +155,7 @@ if uploaded_files:
             source_col = find_col_by_keywords(source_keywords)
 
             kpi_cols = [
-                "kpi_ketban", "kpi_tuongtac_tren_10", "kpi_groupzalo",
-                "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_khong_phan_hoi"
-            ]
+                "kpi_ketban", "kpi_traodoi_1_1", "kpi_tuongtac_tren_10", "kpi_doi_thoai_duoi_10", "kpi_khong_phan_hoi", "kpi_groupzalo"]
 
 
             df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
