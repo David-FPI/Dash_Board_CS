@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
-
+import io
 st.set_page_config(page_title="Tổng hợp báo cáo nhân viên", layout="wide")
 st.title("📊 Tổng hợp báo cáo nhân viên từ nhiều file Excel")
 
@@ -207,5 +207,19 @@ if uploaded_files:
 
         # —————— END: TÍNH KPI ——————
 
-        csv = df_final.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 Tải dữ liệu tổng hợp CSV", csv, "tong_hop_bao_cao.csv", "text/csv")
+
+        # Tạo file Excel trong bộ nhớ
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_final.to_excel(writer, index=False, sheet_name='Tổng hợp')
+            writer.save()
+            processed_data = output.getvalue()
+        
+        # Nút tải về file Excel
+        st.download_button(
+            label="📥 Tải dữ liệu tổng hợp Excel",
+            data=processed_data,
+            file_name="tong_hop_bao_cao.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
