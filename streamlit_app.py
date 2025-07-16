@@ -212,8 +212,9 @@ if uploaded_files:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_final.to_excel(writer, index=False, sheet_name='Tổng hợp')
-            writer.save()
-            processed_data = output.getvalue()
+        output.seek(0)
+        processed_data = output.getvalue()
+
         
         # Nút tải về file Excel
         st.download_button(
