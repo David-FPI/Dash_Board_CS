@@ -211,7 +211,7 @@ if uploaded_files:
         # Tạo file Excel trong bộ nhớ
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_final.to_excel(writer, index=False, sheet_name='Tổng hợp')
+            df_kpi_total.to_excel(writer, index=False, sheet_name='Tổng hợp')
         output.seek(0)
         processed_data = output.getvalue()
 
