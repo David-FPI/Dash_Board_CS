@@ -194,23 +194,7 @@ if uploaded_files:
             df_final["kpi_traodoi_1_1"] = df_final[cols_1_1].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_doi_thoai_duoi_10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
-            # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
 
-                        # ——— GÁN KPI: AI, Blockchain, Web3 (tên cột gốc là "AI", "Block Chain", "Web3") ———
-            ai_col = next((col for col in df_final.columns if normalize_column_name(col) == "ai"), None)
-            blockchain_col = next((col for col in df_final.columns if normalize_column_name(col) == "block chain"), None)
-            web3_col = next((col for col in df_final.columns if normalize_column_name(col) == "web3"), None)
-            
-            try:
-                if ai_col and blockchain_col and web3_col:
-                    df_final["kpi_ai"] = pd.to_numeric(df_final[ai_col], errors="coerce").fillna(0)
-                    df_final["kpi_blockchain"] = pd.to_numeric(df_final[blockchain_col], errors="coerce").fillna(0)
-                    df_final["kpi_web3"] = pd.to_numeric(df_final[web3_col], errors="coerce").fillna(0)
-                    st.success(f"✅ Đã gán KPI AI/Blockchain/Web3 từ các cột: {ai_col}, {blockchain_col}, {web3_col}")
-                else:
-                    st.warning("⚠️ Không tìm đủ cả 3 cột AI, Block Chain, Web3.")
-            except Exception as e:
-                st.error(f"❌ Lỗi khi xử lý KPI AI/Blockchain/Web3: {e}")
 
 
 
@@ -227,7 +211,7 @@ if uploaded_files:
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
                 "kpi_khong_phan_hoi", "kpi_groupzalo",
-                "kpi_ai", "kpi_blockchain", "kpi_web3"  # 🧠 bổ sung dòng này
+
             ]
 
 
