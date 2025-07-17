@@ -122,9 +122,21 @@ if uploaded_files:
         kpi_duoi10_keywords = ["<10"]
         kpi_khong_phan_hoi_keywords = ["không phản hồi", "无回复", "无"]
 
+        # Gán tiêu đề gốc để gắn nhãn dễ hiểu
+        kpi_label_map = {}
+ 
 
-        def find_cols_by_keywords(keywords):
-            return [orig for orig, norm in normalized_cols.items() if any(kw in norm for kw in keywords)]
+        def find_cols_by_keywords(keywords, kpi_name=None):
+            found = []
+            for orig, norm in normalized_cols.items():
+                if any(kw in norm for kw in keywords):
+                    found.append(orig)
+                    if kpi_name:
+                        kpi_label_map[kpi_name] = orig  # chỉ lưu 1 tiêu đề đầu tiên
+            return found
+
+        # def find_cols_by_keywords(keywords):
+        #     return [orig for orig, norm in normalized_cols.items() if any(kw in norm for kw in keywords)]
 
         def find_col_by_keywords(keywords):
             return next((orig for orig, norm in normalized_cols.items()
@@ -136,6 +148,42 @@ if uploaded_files:
         cols_1_1 = find_cols_by_keywords(kpi_1_1_keywords)
         cols_duoi10 = find_cols_by_keywords(kpi_duoi10_keywords)
         cols_khong_phan_hoi = find_cols_by_keywords(kpi_khong_phan_hoi_keywords)
+        # === Bổ sung các nhóm KPI mới ===
+        kpi_luong_data_kh_keywords = ["弹窗", "客户联系社交媒体", "khách hàng nhắn tin", "流量"]
+        kpi_zalo_meta_moi_keywords = ["（新）"]
+        kpi_zalo_meta_cu_keywords = ["（老）"]
+        kpi_zalo_meta_keywords = ["社交媒体加zalo好友"]
+        kpi_zalo_sdt_moi_keywords = ["sdt加zalo好友新"]
+        kpi_zalo_sdt_cu_keywords = ["sdt加zalo好友老"]
+        kpi_zalo_sdt_keywords = ["sdt加zalo好友"]
+
+        # Tạo set để loại trừ trùng lặp
+        used_cols = set(cols_ketban + cols_tuongtac + cols_groupzalo + cols_1_1 + cols_duoi10 + cols_khong_phan_hoi)
+
+        def find_col_exclude_used(keywords):
+            for orig, norm in normalized_cols.items():
+                if orig not in used_cols and any(kw in norm for kw in keywords):
+                    used_cols.add(orig)
+                    return orig
+            return None
+
+        # Dò từng cột và gán vào df_final nếu tìm được
+        kpi_extra_mapping = {
+            "kpi_luong_data_kh": find_col_exclude_used(kpi_luong_data_kh_keywords),
+            "kpi_zalo_meta_moi": find_col_exclude_used(kpi_zalo_meta_moi_keywords),
+            "kpi_zalo_meta_cu": find_col_exclude_used(kpi_zalo_meta_cu_keywords),
+            "kpi_zalo_meta": find_col_exclude_used(kpi_zalo_meta_keywords),
+            "kpi_zalo_sdt_moi": find_col_exclude_used(kpi_zalo_sdt_moi_keywords),
+            "kpi_zalo_sdt_cu": find_col_exclude_used(kpi_zalo_sdt_cu_keywords),
+            "kpi_zalo_sdt": find_col_exclude_used(kpi_zalo_sdt_keywords)
+        }
+
+
+        for kpi_name, col_name in kpi_extra_mapping.items():
+            if col_name:
+                df_final[kpi_name] = pd.to_numeric(df_final[col_name], errors="coerce").fillna(0)
+
+
 
         if not (cols_ketban and cols_tuongtac and cols_groupzalo):
             st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
@@ -155,7 +203,12 @@ if uploaded_files:
             source_col = find_col_by_keywords(source_keywords)
 
             kpi_cols = [
-                "kpi_ketban", "kpi_traodoi_1_1", "kpi_tuongtac_tren_10", "kpi_doi_thoai_duoi_10", "kpi_khong_phan_hoi", "kpi_groupzalo"]
+                "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
+                "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
+                "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
+                "kpi_khong_phan_hoi", "kpi_groupzalo"
+            ]
+
 
 
             df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
@@ -165,6 +218,11 @@ if uploaded_files:
 
 
             df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
+            # ➕ Thêm dòng Tổng cộng
+            total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
+            total_row[staff_col] = "Tổng cộng"
+            df_kpi_total = pd.concat([df_kpi_total, pd.DataFrame([total_row])], ignore_index=True)
+
             # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
             with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
                 col_names = df_kpi_total.columns.tolist()
@@ -200,10 +258,17 @@ if uploaded_files:
 
 
             # df_kpi_total["Hiệu suất (%)"] = pd.to_numeric(df_kpi_total["Hiệu suất (%)"], errors="coerce").round(2)
+            rename_display = {
+                kpi: f"{kpi} ({kpi_label_map.get(kpi, '')})"
+                for kpi in kpi_cols if kpi in kpi_label_map
+            }
 
 
-            st.subheader("📊 KPI tổng hợp theo nhân viên")
-            st.dataframe(df_kpi_total, use_container_width=True)
+
+
+        st.subheader("📊 KPI tổng hợp theo nhân viên")
+        st.dataframe(df_kpi_total, use_container_width=True)
+
 
         # —————— END: TÍNH KPI ——————
 
@@ -212,6 +277,8 @@ if uploaded_files:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_kpi_total.to_excel(writer, index=False, sheet_name='Tổng hợp')
+
+
         output.seek(0)
         processed_data = output.getvalue()
 
@@ -222,5 +289,4 @@ if uploaded_files:
             data=processed_data,
             file_name="tong_hop_bao_cao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
+) 
