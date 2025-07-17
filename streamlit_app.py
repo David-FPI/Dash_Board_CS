@@ -156,7 +156,8 @@ if uploaded_files:
         kpi_zalo_sdt_moi_keywords = ["sdt加zalo好友新"]
         kpi_zalo_sdt_cu_keywords = ["sdt加zalo好友老"]
         kpi_zalo_sdt_keywords = ["sdt加zalo好友"]
-
+        # Bổ sung keywords cho KPI 'tỷ lệ phản hồi'
+        kpi_ty_le_phan_hoi_keywords = ["tỷ lệ", "回复率"]
         # Tạo set để loại trừ trùng lặp
         used_cols = set(cols_ketban + cols_tuongtac + cols_groupzalo + cols_1_1 + cols_duoi10 + cols_khong_phan_hoi)
 
@@ -166,9 +167,10 @@ if uploaded_files:
                     used_cols.add(orig)
                     return orig
             return None
-
+        
         # Dò từng cột và gán vào df_final nếu tìm được
         kpi_extra_mapping = {
+            "kpi_ty_le_phan_hoi": find_col_exclude_used(kpi_ty_le_phan_hoi_keywords),
             "kpi_luong_data_kh": find_col_exclude_used(kpi_luong_data_kh_keywords),
             "kpi_zalo_meta_moi": find_col_exclude_used(kpi_zalo_meta_moi_keywords),
             "kpi_zalo_meta_cu": find_col_exclude_used(kpi_zalo_meta_cu_keywords),
@@ -209,10 +211,41 @@ if uploaded_files:
             kpi_cols = [
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
-                "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
-                "kpi_khong_phan_hoi", "kpi_groupzalo",
+                "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",   
+                "kpi_khong_phan_hoi",  "kpi_ty_le_phan_hoi",                 "kpi_groupzalo"
 
             ]
+
+
+            # Tìm và gán cột KPI này vào df_final
+            col_ty_le_phan_hoi = find_col_exclude_used(kpi_ty_le_phan_hoi_keywords)
+            if col_ty_le_phan_hoi:
+                df_final["kpi_ty_le_phan_hoi"] = pd.to_numeric(df_final[col_ty_le_phan_hoi], errors="coerce")
+                kpi_cols.append("kpi_ty_le_phan_hoi")
+
+            # Dựa vào logic dò cột trong code của bạn, đây là phần nên thêm để dò thêm 3 cột:
+            #   - "AI1" => kpi_ai1
+            #   - "Block Chain1" => kpi_block_chain1
+            #   - "Web31" => kpi_web31
+
+            # Bổ sung từ khóa cho các KPI này:
+            kpi_ai1_keywords = ["ai1"]
+            kpi_block_chain1_keywords = ["block chain1"]
+            kpi_web31_keywords = ["web31"]
+
+            # Thêm vào sau các phần dò cột mở rộng khác:
+            kpi_extra_mapping.update({
+                "kpi_ai1": find_col_exclude_used(kpi_ai1_keywords),
+                "kpi_block_chain1": find_col_exclude_used(kpi_block_chain1_keywords),
+                "kpi_web31": find_col_exclude_used(kpi_web31_keywords)
+            })
+
+            # Gán giá trị vào df_final nếu cột tồn tại:
+            for kpi_name in ["kpi_ai1", "kpi_block_chain1", "kpi_web31"]:
+                col_name = kpi_extra_mapping.get(kpi_name)
+                if col_name:
+                    df_final[kpi_name] = pd.to_numeric(df_final[col_name], errors="coerce").fillna(0)
+                    kpi_cols.append(kpi_name)
 
 
 
