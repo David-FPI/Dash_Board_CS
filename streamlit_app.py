@@ -89,6 +89,8 @@ if uploaded_files:
 
     if full_data:
         df_final = pd.concat(full_data, ignore_index=True)
+        original_cols = list(df_final.columns)  # 🧠 Lưu thứ tự cột gốc trước khi gán KPI
+
         # 🔍 In thử các sheet và số cột nhận được từ mỗi sheet
         st.markdown("### 📌 Check: Cột nhận được từ mỗi sheet")
 
@@ -196,11 +198,10 @@ if uploaded_files:
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
-            # === Gán 3 cột AI, Blockchain, Web3 dựa vào vị trí sau kpi_groupzalo ===
             # Tự động lấy đúng cột kế tiếp sau "kpi_groupzalo" nếu nó tồn tại
             expected_cols = ["kpi_groupzalo", "kpi_ai", "kpi_blockchain", "kpi_web3"]
             actual_cols = df_final.columns.tolist()
-            original_cols = list(df_final.columns)  # lưu lại thứ tự gốc
+            original_cols = list(df_final.columns)  # lưu lại thứ tự gốc  ⛔ dòng này nên xóa đi vì đã move lên trên
             try:
                 start_idx = original_cols.index("kpi_groupzalo")
                 ai_col = original_cols[start_idx + 1]
@@ -237,14 +238,18 @@ if uploaded_files:
             ]
 
 
+            
+            available_kpi_cols = [col for col in kpi_cols if col in df_final.columns]
+            
+            df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[available_kpi_cols].sum()
 
-            df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
             st.subheader("📈 KPI theo nhân viên và nguồn")
             st.dataframe(df_kpi, use_container_width=True)
 
 
 
-            df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
+            df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[available_kpi_cols].sum()
+
             # ➕ Thêm dòng Tổng cộng
             total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
             total_row[staff_col] = "Tổng cộng"
@@ -259,7 +264,9 @@ if uploaded_files:
             chenh_lech = df_kpi_total["kpi_traodoi_1_1"] - tong_chi_tiet
             
             # Ghi chú: Nếu đúng thì 'Yes', nếu sai thì 'No (+x)'
-            df_kpi_total["kpi_check_1_1"] = chenh_lech.apply(lambda x: "Yes" if x == 0 else f"No ({x:+.0f})")
+            if "kpi_traodoi_1_1" in df_kpi_total.columns:
+                df_kpi_total["kpi_check_1_1"] = chenh_lech.apply(lambda x: "Yes" if x == 0 else f"No ({x:+.0f})")
+
 
             # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
             with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
