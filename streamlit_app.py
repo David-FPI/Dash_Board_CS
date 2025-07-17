@@ -196,19 +196,25 @@ if uploaded_files:
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
             # === Gán 3 cột AI, Blockchain, Web3 dựa vào vị trí sau kpi_groupzalo ===
-            try:
-                kpi_groupzalo_idx = df_final.columns.get_loc("kpi_groupzalo")
-                next_3_cols = df_final.columns[kpi_groupzalo_idx + 1 : kpi_groupzalo_idx + 4].tolist()
+            # Tự động lấy đúng cột kế tiếp sau "kpi_groupzalo" nếu nó tồn tại
+            expected_cols = ["kpi_groupzalo", "kpi_ai", "kpi_blockchain", "kpi_web3"]
+            actual_cols = df_final.columns.tolist()
             
-                if len(next_3_cols) < 3:
-                    st.warning("⚠️ Không đủ 3 cột AI/Blockchain/Web3 sau cột kpi_groupzalo.")
-                else:
-                    df_final["kpi_ai"] = pd.to_numeric(df_final[next_3_cols[0]], errors="coerce").fillna(0)
-                    df_final["kpi_blockchain"] = pd.to_numeric(df_final[next_3_cols[1]], errors="coerce").fillna(0)
-                    df_final["kpi_web3"] = pd.to_numeric(df_final[next_3_cols[2]], errors="coerce").fillna(0)
-                    st.success(f"✅ Đã gán 3 KPI: AI, Blockchain, Web3 từ cột: {next_3_cols}")
+            try:
+                start_idx = actual_cols.index("kpi_groupzalo")
+                ai_col = actual_cols[start_idx + 1]
+                blockchain_col = actual_cols[start_idx + 2]
+                web3_col = actual_cols[start_idx + 3]
+            
+                df_final["kpi_ai"] = pd.to_numeric(df_final[ai_col], errors="coerce").fillna(0)
+                df_final["kpi_blockchain"] = pd.to_numeric(df_final[blockchain_col], errors="coerce").fillna(0)
+                df_final["kpi_web3"] = pd.to_numeric(df_final[web3_col], errors="coerce").fillna(0)
+            
+                st.success(f"✅ Đã gán 3 KPI: AI, Blockchain, Web3 từ các cột: {ai_col}, {blockchain_col}, {web3_col}")
             except Exception as e:
-                st.error(f"❌ Lỗi khi gán 3 cột AI/Blockchain/Web3: {e}")
+                st.warning("⚠️ Không thể xác định được đúng 3 cột AI/Blockchain/Web3 sau 'kpi_groupzalo'. Hãy kiểm tra lại vị trí.")
+                st.error(f"Chi tiết lỗi: {e}")
+
 
             
 
