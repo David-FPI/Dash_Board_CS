@@ -89,8 +89,6 @@ if uploaded_files:
 
     if full_data:
         df_final = pd.concat(full_data, ignore_index=True)
-        original_cols = list(df_final.columns)  # 🧠 Lưu thứ tự cột gốc trước khi gán KPI
-
         # 🔍 In thử các sheet và số cột nhận được từ mỗi sheet
         st.markdown("### 📌 Check: Cột nhận được từ mỗi sheet")
 
@@ -187,41 +185,16 @@ if uploaded_files:
 
 
 
-
         if not (cols_ketban and cols_tuongtac and cols_groupzalo):
             st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
         else:
             df_final["kpi_ketban"] = df_final[cols_ketban].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_tuongtac_tren_10"] = df_final[cols_tuongtac].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_traodoi_1_1"] = df_final[cols_1_1].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_doi_thoai_duoi_10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
-            df_final["kpi_groupzalo"] = df_final[cols_groupzalo].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
-            # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
-            # Tự động lấy đúng cột kế tiếp sau "kpi_groupzalo" nếu nó tồn tại
-            expected_cols = ["kpi_groupzalo", "kpi_ai", "kpi_blockchain", "kpi_web3"]
-            actual_cols = df_final.columns.tolist()
-            original_cols = list(df_final.columns)  # lưu lại thứ tự gốc  ⛔ dòng này nên xóa đi vì đã move lên trên
-            try:
-                start_idx = original_cols.index("kpi_groupzalo")
-                ai_col = original_cols[start_idx + 1]
-                blockchain_col = original_cols[start_idx + 2]
-                web3_col = original_cols[start_idx + 3]
-            
-                df_final["kpi_ai"] = pd.to_numeric(df_final[ai_col], errors="coerce").fillna(0)
-                df_final["kpi_blockchain"] = pd.to_numeric(df_final[blockchain_col], errors="coerce").fillna(0)
-                df_final["kpi_web3"] = pd.to_numeric(df_final[web3_col], errors="coerce").fillna(0)
-            
-                st.success(f"✅ Đã gán 3 KPI: AI, Blockchain, Web3 từ các cột: {ai_col}, {blockchain_col}, {web3_col}")
-            except Exception as e:
-                st.warning("⚠️ Không thể xác định được đúng 3 cột AI/Blockchain/Web3 sau 'kpi_groupzalo'. Hãy kiểm tra lại vị trí.")
-                st.error(f"Chi tiết lỗi: {e}")
 
-
-            
-
-
-            
             # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
             staff_keywords = ["nhân viên", "人员", "成员"]
             source_keywords = ["nguồn", "渠道"]
@@ -233,40 +206,22 @@ if uploaded_files:
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
-                "kpi_khong_phan_hoi", "kpi_groupzalo",
-                "kpi_ai", "kpi_blockchain", "kpi_web3"
+                "kpi_khong_phan_hoi", "kpi_groupzalo"
             ]
 
 
-            
-            available_kpi_cols = [col for col in kpi_cols if col in df_final.columns]
-            
-            df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[available_kpi_cols].sum()
 
+            df_kpi = df_final.groupby([staff_col, source_col], as_index=False)[kpi_cols].sum()
             st.subheader("📈 KPI theo nhân viên và nguồn")
             st.dataframe(df_kpi, use_container_width=True)
 
 
 
-            df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[available_kpi_cols].sum()
-
+            df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
             # ➕ Thêm dòng Tổng cộng
             total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
             total_row[staff_col] = "Tổng cộng"
             df_kpi_total = pd.concat([df_kpi_total, pd.DataFrame([total_row])], ignore_index=True)
-            # 🔍 Kiểm tra tổng chi tiết có khớp với kpi_traodoi_1_1 không
-            tong_chi_tiet = (
-                df_kpi_total["kpi_doi_thoai_duoi_10"] +
-                df_kpi_total["kpi_tuongtac_tren_10"] +
-                df_kpi_total["kpi_khong_phan_hoi"]
-            )
-            
-            chenh_lech = df_kpi_total["kpi_traodoi_1_1"] - tong_chi_tiet
-            
-            # Ghi chú: Nếu đúng thì 'Yes', nếu sai thì 'No (+x)'
-            if "kpi_traodoi_1_1" in df_kpi_total.columns:
-                df_kpi_total["kpi_check_1_1"] = chenh_lech.apply(lambda x: "Yes" if x == 0 else f"No ({x:+.0f})")
-
 
             # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
             with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
