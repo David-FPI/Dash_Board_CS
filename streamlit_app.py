@@ -195,6 +195,20 @@ if uploaded_files:
             df_final["kpi_doi_thoai_duoi_10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
+            # === Gán 3 cột AI, Blockchain, Web3 dựa vào vị trí sau kpi_groupzalo ===
+            try:
+                kpi_groupzalo_idx = df_final.columns.get_loc("kpi_groupzalo")
+                next_3_cols = df_final.columns[kpi_groupzalo_idx + 1 : kpi_groupzalo_idx + 4].tolist()
+            
+                if len(next_3_cols) < 3:
+                    st.warning("⚠️ Không đủ 3 cột AI/Blockchain/Web3 sau cột kpi_groupzalo.")
+                else:
+                    df_final["kpi_ai"] = pd.to_numeric(df_final[next_3_cols[0]], errors="coerce").fillna(0)
+                    df_final["kpi_blockchain"] = pd.to_numeric(df_final[next_3_cols[1]], errors="coerce").fillna(0)
+                    df_final["kpi_web3"] = pd.to_numeric(df_final[next_3_cols[2]], errors="coerce").fillna(0)
+                    st.success(f"✅ Đã gán 3 KPI: AI, Blockchain, Web3 từ cột: {next_3_cols}")
+            except Exception as e:
+                st.error(f"❌ Lỗi khi gán 3 cột AI/Blockchain/Web3: {e}")
 
             
 
@@ -211,7 +225,8 @@ if uploaded_files:
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
-                "kpi_khong_phan_hoi", "kpi_groupzalo" 
+                "kpi_khong_phan_hoi", "kpi_groupzalo",
+                "kpi_ai", "kpi_blockchain", "kpi_web3"
             ]
 
 
