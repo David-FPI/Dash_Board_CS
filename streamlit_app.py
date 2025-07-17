@@ -222,6 +222,17 @@ if uploaded_files:
             total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
             total_row[staff_col] = "Tổng cộng"
             df_kpi_total = pd.concat([df_kpi_total, pd.DataFrame([total_row])], ignore_index=True)
+            # 🔍 Kiểm tra tổng chi tiết có khớp với kpi_traodoi_1_1 không
+            tong_chi_tiet = (
+                df_kpi_total["kpi_doi_thoai_duoi_10"] +
+                df_kpi_total["kpi_tuongtac_tren_10"] +
+                df_kpi_total["kpi_khong_phan_hoi"]
+            )
+            
+            chenh_lech = df_kpi_total["kpi_traodoi_1_1"] - tong_chi_tiet
+            
+            # Ghi chú: Nếu đúng thì 'Yes', nếu sai thì 'No (+x)'
+            df_kpi_total["kpi_check_1_1"] = chenh_lech.apply(lambda x: "Yes" if x == 0 else f"No ({x:+.0f})")
 
             # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
             with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
