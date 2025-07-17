@@ -184,7 +184,7 @@ if uploaded_files:
                 df_final[kpi_name] = pd.to_numeric(df_final[col_name], errors="coerce").fillna(0)
 
 
-        original_cols = list(df_final.columns)  # lưu lại thứ tự gốc
+
 
         if not (cols_ketban and cols_tuongtac and cols_groupzalo):
             st.warning("⚠️ Không tìm đủ 3 cột KPI (kết bạn, tương tác, group Zalo). Vui lòng kiểm tra lại tên cột.")
@@ -200,7 +200,7 @@ if uploaded_files:
             # Tự động lấy đúng cột kế tiếp sau "kpi_groupzalo" nếu nó tồn tại
             expected_cols = ["kpi_groupzalo", "kpi_ai", "kpi_blockchain", "kpi_web3"]
             actual_cols = df_final.columns.tolist()
-            
+            original_cols = list(df_final.columns)  # lưu lại thứ tự gốc
             try:
                 start_idx = original_cols.index("kpi_groupzalo")
                 ai_col = original_cols[start_idx + 1]
