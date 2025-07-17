@@ -195,26 +195,9 @@ if uploaded_files:
             df_final["kpi_doi_thoai_duoi_10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
-            try:
-                groupzalo_idx = df_final.columns.get_loc("kpi_groupzalo")
-                ai_col = df_final.columns[groupzalo_idx + 1]
-                blockchain_col = df_final.columns[groupzalo_idx + 2]
-                web3_col = df_final.columns[groupzalo_idx + 3]
+
             
-                # Đổi tên lại cho đúng như yêu cầu
-                df_final.rename(columns={
-                    ai_col: "AI",
-                    blockchain_col: "Block Chain",
-                    web3_col: "Web3"
-                }, inplace=True)
-            
-                # Chuyển sang số luôn cho an toàn
-                df_final["AI"] = pd.to_numeric(df_final["AI"], errors="coerce").fillna(0)
-                df_final["Block Chain"] = pd.to_numeric(df_final["Block Chain"], errors="coerce").fillna(0)
-                df_final["Web3"] = pd.to_numeric(df_final["Web3"], errors="coerce").fillna(0)
-            
-            except Exception as e:
-                st.warning(f"⚠️ Không thể dò 3 cột kế bên kpi_groupzalo: {e}")
+
 
             
             # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
@@ -228,7 +211,7 @@ if uploaded_files:
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
-                "kpi_khong_phan_hoi", "kpi_groupzalo", "AI", "Block Chain", "Web3" 
+                "kpi_khong_phan_hoi", "kpi_groupzalo" 
             ]
 
 
