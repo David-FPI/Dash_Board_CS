@@ -100,7 +100,7 @@ if uploaded_files:
 
             # Optional: hiển thị 3 dòng đầu của mỗi sheet
             for sheet in df_final["__Sheet__"].unique():
-                st.markdown(f"#### 🧾 Sheet: `{sheet}` - 3 dòng đầu")
+                st.markdown(f"#### 🧾 Sheet: {sheet} - 3 dòng đầu")
                 st.dataframe(df_final[df_final["__Sheet__"] == sheet].head(3), use_container_width=True)
         else:
             st.warning("⚠️ Không tìm thấy cột '__Sheet__'. Có thể hàm process_all_sheets() đang bị lỗi.")
@@ -194,7 +194,12 @@ if uploaded_files:
             df_final["kpi_traodoi_1_1"] = df_final[cols_1_1].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_doi_thoai_duoi_10"] = df_final[cols_duoi10].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
             df_final["kpi_khong_phan_hoi"] = df_final[cols_khong_phan_hoi].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+            # ——— Tìm 3 cột kế bên "kpi_groupzalo" ———
 
+            
+
+
+            
             # 🎯 Nâng cấp tìm cột Nhân viên và Nguồn
             staff_keywords = ["nhân viên", "人员", "成员"]
             source_keywords = ["nguồn", "渠道"]
@@ -206,7 +211,7 @@ if uploaded_files:
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",
-                "kpi_khong_phan_hoi", "kpi_groupzalo"
+                "kpi_khong_phan_hoi", "kpi_groupzalo" 
             ]
 
 
@@ -222,6 +227,17 @@ if uploaded_files:
             total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
             total_row[staff_col] = "Tổng cộng"
             df_kpi_total = pd.concat([df_kpi_total, pd.DataFrame([total_row])], ignore_index=True)
+            # 🔍 Kiểm tra tổng chi tiết có khớp với kpi_traodoi_1_1 không
+            tong_chi_tiet = (
+                df_kpi_total["kpi_doi_thoai_duoi_10"] +
+                df_kpi_total["kpi_tuongtac_tren_10"] +
+                df_kpi_total["kpi_khong_phan_hoi"]
+            )
+            
+            chenh_lech = df_kpi_total["kpi_traodoi_1_1"] - tong_chi_tiet
+            
+            # Ghi chú: Nếu đúng thì 'Yes', nếu sai thì 'No (+x)'
+            df_kpi_total["kpi_check_1_1"] = chenh_lech.apply(lambda x: "Yes" if x == 0 else f"No ({x:+.0f})")
 
             # ===== 🔧 KPI tùy biến (cộng trừ nhân chia giữa các cột) =====
             with st.expander("🧮 Thiết kế công thức KPI tuỳ biến", expanded=False):
@@ -236,7 +252,7 @@ if uploaded_files:
                 selected_common = st.selectbox("📂 Chọn công thức mẫu:", [""] + list(common_formulas.keys()))
                 if selected_common:
                     custom_formula = common_formulas[selected_common]
-                    st.info(f"📌 Công thức đã chọn: `{custom_formula}`")
+                    st.info(f"📌 Công thức đã chọn: {custom_formula}")
                 else:
                     custom_formula = st.text_input("🧠 Nhập công thức KPI tuỳ chỉnh")
 
@@ -289,4 +305,4 @@ if uploaded_files:
             data=processed_data,
             file_name="tong_hop_bao_cao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-) 
+)  
