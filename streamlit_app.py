@@ -156,8 +156,7 @@ if uploaded_files:
         kpi_zalo_sdt_moi_keywords = ["sdt加zalo好友新"]
         kpi_zalo_sdt_cu_keywords = ["sdt加zalo好友老"]
         kpi_zalo_sdt_keywords = ["sdt加zalo好友"]
-        # Bổ sung keywords cho KPI 'tỷ lệ phản hồi'
-        kpi_ty_le_phan_hoi_keywords = ["tỷ lệ", "回复率"]
+
         # Tạo set để loại trừ trùng lặp
         used_cols = set(cols_ketban + cols_tuongtac + cols_groupzalo + cols_1_1 + cols_duoi10 + cols_khong_phan_hoi)
 
@@ -170,7 +169,6 @@ if uploaded_files:
         
         # Dò từng cột và gán vào df_final nếu tìm được
         kpi_extra_mapping = {
-            "kpi_ty_le_phan_hoi": find_col_exclude_used(kpi_ty_le_phan_hoi_keywords),
             "kpi_luong_data_kh": find_col_exclude_used(kpi_luong_data_kh_keywords),
             "kpi_zalo_meta_moi": find_col_exclude_used(kpi_zalo_meta_moi_keywords),
             "kpi_zalo_meta_cu": find_col_exclude_used(kpi_zalo_meta_cu_keywords),
@@ -212,16 +210,11 @@ if uploaded_files:
                 "kpi_luong_data_kh", "kpi_zalo_meta_moi", "kpi_zalo_meta_cu", "kpi_zalo_meta",
                 "kpi_zalo_sdt_moi", "kpi_zalo_sdt_cu", "kpi_zalo_sdt",
                 "kpi_ketban", "kpi_traodoi_1_1", "kpi_doi_thoai_duoi_10", "kpi_tuongtac_tren_10",   
-                "kpi_khong_phan_hoi",  "kpi_ty_le_phan_hoi",                 "kpi_groupzalo"
+                "kpi_khong_phan_hoi",           "kpi_groupzalo"
 
             ]
 
 
-            # Tìm và gán cột KPI này vào df_final
-            col_ty_le_phan_hoi = find_col_exclude_used(kpi_ty_le_phan_hoi_keywords)
-            if col_ty_le_phan_hoi:
-                df_final["kpi_ty_le_phan_hoi"] = pd.to_numeric(df_final[col_ty_le_phan_hoi], errors="coerce")
-                kpi_cols.append("kpi_ty_le_phan_hoi")
 
             # Dựa vào logic dò cột trong code của bạn, đây là phần nên thêm để dò thêm 3 cột:
             #   - "AI1" => kpi_ai1
@@ -256,9 +249,25 @@ if uploaded_files:
 
 
             df_kpi_total = df_kpi.groupby(staff_col, as_index=False)[kpi_cols].sum()
+            df_kpi_total.insert( df_kpi_total.columns.get_loc("kpi_khong_phan_hoi") + 1, "kpi_ty_le_phan_hoi (%)",   ((df_kpi_total["kpi_traodoi_1_1"] - df_kpi_total["kpi_khong_phan_hoi"]) / df_kpi_total["kpi_traodoi_1_1"] * 100).round(2))
             # ➕ Thêm dòng Tổng cộng
             total_row = df_kpi_total[kpi_cols].sum(numeric_only=True)
             total_row[staff_col] = "Tổng cộng"
+
+
+            # Tính lại kpi_ty_le_phan_hoi (%) cho dòng Tổng cộng
+            # Tính lại kpi_ty_le_phan_hoi (%) cho dòng Tổng cộng
+            try:
+                tong_traodoi = total_row.get("kpi_traodoi_1_1", 0)
+                tong_khong_phan_hoi = total_row.get("kpi_khong_phan_hoi", 0)
+                if tong_traodoi != 0:
+                    ty_le = round((tong_traodoi - tong_khong_phan_hoi) / tong_traodoi * 100, 2)
+                    total_row["kpi_ty_le_phan_hoi (%)"] = f"{ty_le:.2f}%"
+                else:
+                    total_row["kpi_ty_le_phan_hoi (%)"] = ""
+            except:
+                total_row["kpi_ty_le_phan_hoi (%)"] = ""
+
             df_kpi_total = pd.concat([df_kpi_total, pd.DataFrame([total_row])], ignore_index=True)
             # 🔍 Kiểm tra tổng chi tiết có khớp với kpi_traodoi_1_1 không
             tong_chi_tiet = (
@@ -321,17 +330,12 @@ if uploaded_files:
 
         # —————— END: TÍNH KPI ——————
 
-
         # Tạo file Excel trong bộ nhớ
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_kpi_total.to_excel(writer, index=False, sheet_name='Tổng hợp')
-
-
         output.seek(0)
         processed_data = output.getvalue()
-
-        
         # Nút tải về file Excel
         st.download_button(
             label="📥 Tải dữ liệu tổng hợp Excel",
@@ -339,3 +343,4 @@ if uploaded_files:
             file_name="tong_hop_bao_cao.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )  
+        
